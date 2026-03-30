@@ -19,13 +19,13 @@ const defaultPageSize = 100
 
 // Service handles exporting registry data into seed files.
 type Service struct {
-	registryService service.RegistryService
+	registryService service.ServerService
 	pageSize        int
 	readmeOutput    string
 }
 
 // NewService creates a new exporter service.
-func NewService(registryService service.RegistryService) *Service {
+func NewService(registryService service.ServerService) *Service {
 	return &Service{
 		registryService: registryService,
 		pageSize:        defaultPageSize,
