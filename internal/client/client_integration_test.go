@@ -12,7 +12,7 @@ import (
 	apitypes "github.com/agentregistry-dev/agentregistry/internal/registry/api/apitypes"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/api/router"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
-	servicetesting "github.com/agentregistry-dev/agentregistry/internal/registry/service/testing"
+	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/telemetry"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
@@ -22,8 +22,355 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 )
 
+type fakeClientRegistry struct {
+	Servers []*apiv0.ServerResponse
+	Agents  []*models.AgentResponse
+	Skills  []*models.SkillResponse
+	Prompts []*models.PromptResponse
+
+	ListServersFn                func(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
+	GetServerByNameFn            func(ctx context.Context, serverName string) (*apiv0.ServerResponse, error)
+	GetServerByNameAndVersionFn  func(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error)
+	GetAllVersionsByServerNameFn func(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error)
+	CreateServerFn               func(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error)
+	UpdateServerFn               func(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error)
+	StoreServerReadmeFn          func(ctx context.Context, serverName, version string, content []byte, contentType string) error
+	GetServerReadmeLatestFn      func(ctx context.Context, serverName string) (*database.ServerReadme, error)
+	GetServerReadmeByVersionFn   func(ctx context.Context, serverName, version string) (*database.ServerReadme, error)
+	DeleteServerFn               func(ctx context.Context, serverName, version string) error
+
+	ListAgentsFn                func(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
+	GetAgentByNameFn            func(ctx context.Context, agentName string) (*models.AgentResponse, error)
+	GetAgentByNameAndVersionFn  func(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
+	GetAllVersionsByAgentNameFn func(ctx context.Context, agentName string) ([]*models.AgentResponse, error)
+	CreateAgentFn               func(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error)
+	DeleteAgentFn               func(ctx context.Context, agentName, version string) error
+
+	ListSkillsFn                func(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error)
+	GetSkillByNameFn            func(ctx context.Context, skillName string) (*models.SkillResponse, error)
+	GetSkillByNameAndVersionFn  func(ctx context.Context, skillName, version string) (*models.SkillResponse, error)
+	GetAllVersionsBySkillNameFn func(ctx context.Context, skillName string) ([]*models.SkillResponse, error)
+	CreateSkillFn               func(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error)
+	DeleteSkillFn               func(ctx context.Context, skillName, version string) error
+
+	ListPromptsFn                func(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error)
+	GetPromptByNameFn            func(ctx context.Context, promptName string) (*models.PromptResponse, error)
+	GetPromptByNameAndVersionFn  func(ctx context.Context, promptName, version string) (*models.PromptResponse, error)
+	GetAllVersionsByPromptNameFn func(ctx context.Context, promptName string) ([]*models.PromptResponse, error)
+	CreatePromptFn               func(ctx context.Context, req *models.PromptJSON) (*models.PromptResponse, error)
+	DeletePromptFn               func(ctx context.Context, promptName, version string) error
+
+	ListProvidersFn   func(ctx context.Context, platform *string) ([]*models.Provider, error)
+	GetProviderByIDFn func(ctx context.Context, providerID string) (*models.Provider, error)
+	CreateProviderFn  func(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error)
+	UpdateProviderFn  func(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
+	DeleteProviderFn  func(ctx context.Context, providerID string) error
+
+	GetDeploymentsFn       func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	GetDeploymentByIDFn    func(ctx context.Context, id string) (*models.Deployment, error)
+	DeployServerFn         func(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	DeployAgentFn          func(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	RemoveDeploymentByIDFn func(ctx context.Context, id string) error
+	CreateDeploymentFn     func(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
+	UndeployDeploymentFn   func(ctx context.Context, deployment *models.Deployment) error
+	GetDeploymentLogsFn    func(ctx context.Context, deployment *models.Deployment) ([]string, error)
+	CancelDeploymentFn     func(ctx context.Context, deployment *models.Deployment) error
+}
+
+func newFakeClientRegistry() *fakeClientRegistry { return &fakeClientRegistry{} }
+
+func (f *fakeClientRegistry) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	if f.ListServersFn != nil {
+		return f.ListServersFn(ctx, filter, cursor, limit)
+	}
+	if cursor != "" {
+		return nil, "", nil
+	}
+	return f.Servers, "", nil
+}
+func (f *fakeClientRegistry) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	if f.GetServerByNameFn != nil {
+		return f.GetServerByNameFn(ctx, serverName)
+	}
+	if len(f.Servers) > 0 {
+		return f.Servers[0], nil
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	if f.GetServerByNameAndVersionFn != nil {
+		return f.GetServerByNameAndVersionFn(ctx, serverName, version)
+	}
+	return f.GetServerByName(ctx, serverName)
+}
+func (f *fakeClientRegistry) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	if f.GetAllVersionsByServerNameFn != nil {
+		return f.GetAllVersionsByServerNameFn(ctx, serverName)
+	}
+	return f.Servers, nil
+}
+func (f *fakeClientRegistry) CreateServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	if f.CreateServerFn != nil {
+		return f.CreateServerFn(ctx, req)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) UpdateServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error) {
+	if f.UpdateServerFn != nil {
+		return f.UpdateServerFn(ctx, serverName, version, req, newStatus)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) StoreServerReadme(ctx context.Context, serverName, version string, content []byte, contentType string) error {
+	if f.StoreServerReadmeFn != nil {
+		return f.StoreServerReadmeFn(ctx, serverName, version, content, contentType)
+	}
+	return database.ErrNotFound
+}
+func (f *fakeClientRegistry) GetServerReadmeLatest(ctx context.Context, serverName string) (*database.ServerReadme, error) {
+	if f.GetServerReadmeLatestFn != nil {
+		return f.GetServerReadmeLatestFn(ctx, serverName)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) GetServerReadmeByVersion(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
+	if f.GetServerReadmeByVersionFn != nil {
+		return f.GetServerReadmeByVersionFn(ctx, serverName, version)
+	}
+	return f.GetServerReadmeLatest(ctx, serverName)
+}
+func (f *fakeClientRegistry) DeleteServer(ctx context.Context, serverName, version string) error {
+	if f.DeleteServerFn != nil {
+		return f.DeleteServerFn(ctx, serverName, version)
+	}
+	return database.ErrNotFound
+}
+func (f *fakeClientRegistry) UpsertServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
+	return nil
+}
+func (f *fakeClientRegistry) GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	if f.ListAgentsFn != nil {
+		return f.ListAgentsFn(ctx, filter, cursor, limit)
+	}
+	if cursor != "" {
+		return nil, "", nil
+	}
+	return f.Agents, "", nil
+}
+func (f *fakeClientRegistry) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	if f.GetAgentByNameFn != nil {
+		return f.GetAgentByNameFn(ctx, agentName)
+	}
+	if len(f.Agents) > 0 {
+		return f.Agents[0], nil
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	if f.GetAgentByNameAndVersionFn != nil {
+		return f.GetAgentByNameAndVersionFn(ctx, agentName, version)
+	}
+	return f.GetAgentByName(ctx, agentName)
+}
+func (f *fakeClientRegistry) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+	if f.GetAllVersionsByAgentNameFn != nil {
+		return f.GetAllVersionsByAgentNameFn(ctx, agentName)
+	}
+	return f.Agents, nil
+}
+func (f *fakeClientRegistry) CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+	if f.CreateAgentFn != nil {
+		return f.CreateAgentFn(ctx, req)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error) {
+	return nil, nil
+}
+func (f *fakeClientRegistry) ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error) {
+	return nil, nil
+}
+func (f *fakeClientRegistry) DeleteAgent(ctx context.Context, agentName, version string) error {
+	if f.DeleteAgentFn != nil {
+		return f.DeleteAgentFn(ctx, agentName, version)
+	}
+	return database.ErrNotFound
+}
+func (f *fakeClientRegistry) UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
+	return nil
+}
+func (f *fakeClientRegistry) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+	if f.ListSkillsFn != nil {
+		return f.ListSkillsFn(ctx, filter, cursor, limit)
+	}
+	return f.Skills, "", nil
+}
+func (f *fakeClientRegistry) GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error) {
+	if f.GetSkillByNameFn != nil {
+		return f.GetSkillByNameFn(ctx, skillName)
+	}
+	if len(f.Skills) > 0 {
+		return f.Skills[0], nil
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error) {
+	if f.GetSkillByNameAndVersionFn != nil {
+		return f.GetSkillByNameAndVersionFn(ctx, skillName, version)
+	}
+	return f.GetSkillByName(ctx, skillName)
+}
+func (f *fakeClientRegistry) GetAllVersionsBySkillName(ctx context.Context, skillName string) ([]*models.SkillResponse, error) {
+	if f.GetAllVersionsBySkillNameFn != nil {
+		return f.GetAllVersionsBySkillNameFn(ctx, skillName)
+	}
+	return f.Skills, nil
+}
+func (f *fakeClientRegistry) CreateSkill(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error) {
+	if f.CreateSkillFn != nil {
+		return f.CreateSkillFn(ctx, req)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) DeleteSkill(ctx context.Context, skillName, version string) error {
+	if f.DeleteSkillFn != nil {
+		return f.DeleteSkillFn(ctx, skillName, version)
+	}
+	return database.ErrNotFound
+}
+func (f *fakeClientRegistry) ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
+	if f.ListPromptsFn != nil {
+		return f.ListPromptsFn(ctx, filter, cursor, limit)
+	}
+	return f.Prompts, "", nil
+}
+func (f *fakeClientRegistry) GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error) {
+	if f.GetPromptByNameFn != nil {
+		return f.GetPromptByNameFn(ctx, promptName)
+	}
+	if len(f.Prompts) > 0 {
+		return f.Prompts[0], nil
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error) {
+	if f.GetPromptByNameAndVersionFn != nil {
+		return f.GetPromptByNameAndVersionFn(ctx, promptName, version)
+	}
+	return f.GetPromptByName(ctx, promptName)
+}
+func (f *fakeClientRegistry) GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*models.PromptResponse, error) {
+	if f.GetAllVersionsByPromptNameFn != nil {
+		return f.GetAllVersionsByPromptNameFn(ctx, promptName)
+	}
+	return f.Prompts, nil
+}
+func (f *fakeClientRegistry) CreatePrompt(ctx context.Context, req *models.PromptJSON) (*models.PromptResponse, error) {
+	if f.CreatePromptFn != nil {
+		return f.CreatePromptFn(ctx, req)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) DeletePrompt(ctx context.Context, promptName, version string) error {
+	if f.DeletePromptFn != nil {
+		return f.DeletePromptFn(ctx, promptName, version)
+	}
+	return database.ErrNotFound
+}
+func (f *fakeClientRegistry) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
+	if f.ListProvidersFn != nil {
+		return f.ListProvidersFn(ctx, platform)
+	}
+	return nil, nil
+}
+func (f *fakeClientRegistry) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	if f.GetProviderByIDFn != nil {
+		return f.GetProviderByIDFn(ctx, providerID)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
+	if f.CreateProviderFn != nil {
+		return f.CreateProviderFn(ctx, in)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error) {
+	if f.UpdateProviderFn != nil {
+		return f.UpdateProviderFn(ctx, providerID, in)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) DeleteProvider(ctx context.Context, providerID string) error {
+	if f.DeleteProviderFn != nil {
+		return f.DeleteProviderFn(ctx, providerID)
+	}
+	return database.ErrNotFound
+}
+func (f *fakeClientRegistry) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	if f.GetDeploymentsFn != nil {
+		return f.GetDeploymentsFn(ctx, filter)
+	}
+	return nil, nil
+}
+func (f *fakeClientRegistry) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+	if f.GetDeploymentByIDFn != nil {
+		return f.GetDeploymentByIDFn(ctx, id)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) DeployServer(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	if f.DeployServerFn != nil {
+		return f.DeployServerFn(ctx, serverName, version, config, preferRemote, providerID)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) DeployAgent(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	if f.DeployAgentFn != nil {
+		return f.DeployAgentFn(ctx, agentName, version, config, preferRemote, providerID)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) RemoveDeploymentByID(ctx context.Context, id string) error {
+	if f.RemoveDeploymentByIDFn != nil {
+		return f.RemoveDeploymentByIDFn(ctx, id)
+	}
+	return database.ErrNotFound
+}
+func (f *fakeClientRegistry) CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
+	if f.CreateDeploymentFn != nil {
+		return f.CreateDeploymentFn(ctx, req)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) UndeployDeployment(ctx context.Context, deployment *models.Deployment) error {
+	if f.UndeployDeploymentFn != nil {
+		return f.UndeployDeploymentFn(ctx, deployment)
+	}
+	return database.ErrNotFound
+}
+func (f *fakeClientRegistry) GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
+	if f.GetDeploymentLogsFn != nil {
+		return f.GetDeploymentLogsFn(ctx, deployment)
+	}
+	return nil, database.ErrNotFound
+}
+func (f *fakeClientRegistry) CancelDeployment(ctx context.Context, deployment *models.Deployment) error {
+	if f.CancelDeploymentFn != nil {
+		return f.CancelDeploymentFn(ctx, deployment)
+	}
+	return database.ErrNotFound
+}
+func (f *fakeClientRegistry) ReconcileAll(ctx context.Context) error { return nil }
+
 func TestClientIntegration_PingAndVersion(t *testing.T) {
-	fake := servicetesting.NewFakeRegistry()
+	fake := newFakeClientRegistry()
 	client, cleanup := newClientWithInProcessServer(t, fake)
 	defer cleanup()
 
@@ -96,7 +443,7 @@ func TestClientIntegration_CatalogRoutes_HappyPath(t *testing.T) {
 	var deletedAgent bool
 	var deletedServer bool
 
-	fake := servicetesting.NewFakeRegistry()
+	fake := newFakeClientRegistry()
 	fake.ListServersFn = func(_ context.Context, _ *database.ServerFilter, _ string, _ int) ([]*apiv0.ServerResponse, string, error) {
 		return []*apiv0.ServerResponse{serverV1, serverV2}, "", nil
 	}
@@ -298,7 +645,7 @@ func TestClientIntegration_CatalogRoutes_HappyPath(t *testing.T) {
 
 func TestClientIntegration_DeploymentRoutes_HappyPath(t *testing.T) {
 	now := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
-	fake := servicetesting.NewFakeRegistry()
+	fake := newFakeClientRegistry()
 
 	fake.GetDeploymentsFn = func(_ context.Context, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
 		return []*models.Deployment{
@@ -505,7 +852,7 @@ func TestClientIntegration_DeploymentRoutes_HappyPath(t *testing.T) {
 	}
 }
 
-func newClientWithInProcessServer(t *testing.T, fake *servicetesting.FakeRegistry) (*Client, func()) {
+func newClientWithInProcessServer(t *testing.T, fake *fakeClientRegistry) (*Client, func()) {
 	t.Helper()
 
 	mux := http.NewServeMux()

@@ -12,7 +12,6 @@ import (
 	v0 "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0"
 	platformutils "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/utils"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
-	servicetesting "github.com/agentregistry-dev/agentregistry/internal/registry/service/testing"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
@@ -34,6 +33,113 @@ type fakeDeploymentAdapter struct {
 	lastDeployReq  *models.Deployment
 }
 
+type fakeProviderDeploymentService struct {
+	GetProviderByIDFn      func(ctx context.Context, providerID string) (*models.Provider, error)
+	CreateDeploymentFn     func(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
+	GetDeploymentByIDFn    func(ctx context.Context, id string) (*models.Deployment, error)
+	RemoveDeploymentByIDFn func(ctx context.Context, id string) error
+	DeployServerFn         func(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	DeployAgentFn          func(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	UndeployDeploymentFn   func(ctx context.Context, deployment *models.Deployment) error
+	GetDeploymentLogsFn    func(ctx context.Context, deployment *models.Deployment) ([]string, error)
+	CancelDeploymentFn     func(ctx context.Context, deployment *models.Deployment) error
+	GetDeploymentsFn       func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+}
+
+func newFakeProviderDeploymentService() *fakeProviderDeploymentService {
+	return &fakeProviderDeploymentService{}
+}
+
+func (f *fakeProviderDeploymentService) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
+	return nil, nil
+}
+
+func (f *fakeProviderDeploymentService) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	if f.GetProviderByIDFn != nil {
+		return f.GetProviderByIDFn(ctx, providerID)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) DeleteProvider(ctx context.Context, providerID string) error {
+	return database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	if f.GetDeploymentsFn != nil {
+		return f.GetDeploymentsFn(ctx, filter)
+	}
+	return nil, nil
+}
+
+func (f *fakeProviderDeploymentService) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+	if f.GetDeploymentByIDFn != nil {
+		return f.GetDeploymentByIDFn(ctx, id)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) DeployServer(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	if f.DeployServerFn != nil {
+		return f.DeployServerFn(ctx, serverName, version, config, preferRemote, providerID)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) DeployAgent(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	if f.DeployAgentFn != nil {
+		return f.DeployAgentFn(ctx, agentName, version, config, preferRemote, providerID)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) RemoveDeploymentByID(ctx context.Context, id string) error {
+	if f.RemoveDeploymentByIDFn != nil {
+		return f.RemoveDeploymentByIDFn(ctx, id)
+	}
+	return database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
+	if f.CreateDeploymentFn != nil {
+		return f.CreateDeploymentFn(ctx, req)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) UndeployDeployment(ctx context.Context, deployment *models.Deployment) error {
+	if f.UndeployDeploymentFn != nil {
+		return f.UndeployDeploymentFn(ctx, deployment)
+	}
+	return database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
+	if f.GetDeploymentLogsFn != nil {
+		return f.GetDeploymentLogsFn(ctx, deployment)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) CancelDeployment(ctx context.Context, deployment *models.Deployment) error {
+	if f.CancelDeploymentFn != nil {
+		return f.CancelDeploymentFn(ctx, deployment)
+	}
+	return database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) ReconcileAll(ctx context.Context) error {
+	return nil
+}
+
 func (f *fakeDeploymentAdapter) Platform() string { return "local" }
 func (f *fakeDeploymentAdapter) SupportedResourceTypes() []string {
 	return []string{"mcp", "agent"}
@@ -48,7 +154,7 @@ func (f *fakeDeploymentAdapter) Deploy(_ context.Context, req *models.Deployment
 }
 
 func TestCreateDeployment_PassesEnvAndProviderConfigSeparately(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
@@ -111,7 +217,7 @@ func TestCreateDeployment_PassesEnvAndProviderConfigSeparately(t *testing.T) {
 }
 
 func TestCreateDeployment_MissingProviderIDReturnsBadRequest(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.CreateDeploymentFn = func(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
 		t.Fatalf("expected providerId validation failure before service call")
 		return nil, nil
@@ -161,7 +267,7 @@ func (f *fakeDeploymentAdapter) Discover(_ context.Context, _ string) ([]*models
 }
 
 func TestDeleteDeployment_DiscoveredReturnsConflict(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{
 			ID:         id,
@@ -195,7 +301,7 @@ func TestDeleteDeployment_DiscoveredReturnsConflict(t *testing.T) {
 }
 
 func TestCreateDeployment_UsesAdapterWhenRegistered(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
@@ -253,7 +359,7 @@ func TestCreateDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 }
 
 func TestCreateDeployment_InvalidInputFromAdapterReturnsBadRequest(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
@@ -301,7 +407,7 @@ func TestCreateDeployment_InvalidInputFromAdapterReturnsBadRequest(t *testing.T)
 }
 
 func TestCreateDeployment_AllowsMultipleDeploymentsForSameArtifact(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
@@ -361,7 +467,7 @@ func TestCreateDeployment_AllowsMultipleDeploymentsForSameArtifact(t *testing.T)
 }
 
 func TestCreateDeployment_NotFoundIncludesResourceName(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
@@ -398,7 +504,7 @@ func TestCreateDeployment_NotFoundIncludesResourceName(t *testing.T) {
 }
 
 func TestDeleteDeployment_UsesAdapterWhenRegistered(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{
 			ID:         id,
@@ -436,7 +542,7 @@ func TestDeleteDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 }
 
 func TestDeleteDeployment_UnsupportedPlatformReturnsBadRequest(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{
 			ID:         id,
@@ -470,7 +576,7 @@ func TestDeleteDeployment_UnsupportedPlatformReturnsBadRequest(t *testing.T) {
 }
 
 func TestGetDeploymentLogs_UsesAdapterWhenRegistered(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{
 			ID:         id,
@@ -510,7 +616,7 @@ func TestGetDeploymentLogs_UsesAdapterWhenRegistered(t *testing.T) {
 }
 
 func TestGetDeploymentLogs_NotFoundFromAdapterReturnsNotFound(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{
 			ID:         id,
@@ -544,7 +650,7 @@ func TestGetDeploymentLogs_NotFoundFromAdapterReturnsNotFound(t *testing.T) {
 }
 
 func TestGetDeploymentLogs_NotSupportedFromAdapterReturnsNotImplemented(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{
 			ID:         id,
@@ -578,7 +684,7 @@ func TestGetDeploymentLogs_NotSupportedFromAdapterReturnsNotImplemented(t *testi
 }
 
 func TestCancelDeployment_UsesAdapterWhenRegistered(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{
 			ID:         id,
@@ -612,7 +718,7 @@ func TestCancelDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 }
 
 func TestCancelDeployment_InvalidInputFromAdapterReturnsBadRequest(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{
 			ID:         id,
@@ -646,7 +752,7 @@ func TestCancelDeployment_InvalidInputFromAdapterReturnsBadRequest(t *testing.T)
 }
 
 func TestCancelDeployment_NotSupportedFromAdapterReturnsNotImplemented(t *testing.T) {
-	reg := servicetesting.NewFakeRegistry()
+	reg := newFakeProviderDeploymentService()
 	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{
 			ID:         id,

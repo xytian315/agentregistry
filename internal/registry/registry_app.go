@@ -129,13 +129,18 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 	}
 
 	registryService := service.NewRegistryService(db, cfg, embeddingProvider)
+	var providerService service.ProviderService = registryService
+	var platformRuntimeService service.PlatformRuntimeService = registryService
+	var serverService service.ServerService = registryService
+	var apiRouteService service.APIRouteService = registryService
+	var mcpRegistryService service.MCPRegistryService = registryService
 
 	// Initialize extension registries once and use them for both routing and service behavior.
-	providerPlatforms := v0.DefaultProviderPlatformAdapters(registryService)
+	providerPlatforms := v0.DefaultProviderPlatformAdapters(providerService)
 	maps.Copy(providerPlatforms, options.ProviderPlatforms)
 	deploymentPlatforms := map[string]types.DeploymentPlatformAdapter{
-		"local":      local.NewLocalDeploymentAdapter(registryService, cfg.RuntimeDir, cfg.AgentGatewayPort),
-		"kubernetes": kubernetes.NewKubernetesDeploymentAdapter(registryService),
+		"local":      local.NewLocalDeploymentAdapter(platformRuntimeService, cfg.RuntimeDir, cfg.AgentGatewayPort),
+		"kubernetes": kubernetes.NewKubernetesDeploymentAdapter(platformRuntimeService),
 	}
 	maps.Copy(deploymentPlatforms, options.DeploymentPlatforms)
 
@@ -157,7 +162,7 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 
 			ctx = auth.WithSystemContext(ctx)
 
-			if err := seed.ImportBuiltinSeedData(ctx, registryService); err != nil {
+			if err := seed.ImportBuiltinSeedData(ctx, serverService); err != nil {
 				slog.Error("failed to import builtin seed data", "error", err)
 			}
 		}()
@@ -172,7 +177,7 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 
 			ctx = auth.WithSystemContext(ctx)
 
-			importerService := importer.NewService(registryService)
+			importerService := importer.NewService(serverService)
 			if embeddingProvider != nil {
 				importerService.SetEmbeddingProvider(embeddingProvider)
 				importerService.SetEmbeddingDimensions(cfg.Embeddings.Dimensions)
@@ -220,7 +225,7 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 	}
 
 	// Initialize HTTP server
-	baseServer := api.NewServer(cfg, registryService, metrics, versionInfo, options.UIHandler, authnProvider, routeOpts)
+	baseServer := api.NewServer(cfg, apiRouteService, metrics, versionInfo, options.UIHandler, authnProvider, routeOpts)
 
 	var server types.Server
 	if options.HTTPServerFactory != nil {
@@ -235,7 +240,7 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 
 	var mcpHTTPServer *http.Server
 	if cfg.MCPPort > 0 {
-		mcpServer := mcpregistry.NewServer(registryService)
+		mcpServer := mcpregistry.NewServer(mcpRegistryService)
 
 		var handler http.Handler = mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
 			return mcpServer

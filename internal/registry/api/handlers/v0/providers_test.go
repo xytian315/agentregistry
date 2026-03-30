@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	v0 "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0"
-	servicetesting "github.com/agentregistry-dev/agentregistry/internal/registry/service/testing"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
@@ -22,6 +21,49 @@ import (
 type fakeProviderAdapter struct {
 	platform  string
 	providers map[string]*models.Provider
+}
+
+type fakeProviderService struct {
+	listProvidersFn func(ctx context.Context, platform *string) ([]*models.Provider, error)
+	getProviderFn   func(ctx context.Context, providerID string) (*models.Provider, error)
+	createFn        func(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error)
+	updateFn        func(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
+	deleteFn        func(ctx context.Context, providerID string) error
+}
+
+func (f *fakeProviderService) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
+	if f.listProvidersFn != nil {
+		return f.listProvidersFn(ctx, platform)
+	}
+	return nil, nil
+}
+
+func (f *fakeProviderService) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	if f.getProviderFn != nil {
+		return f.getProviderFn(ctx, providerID)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderService) CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
+	if f.createFn != nil {
+		return f.createFn(ctx, in)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderService) UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error) {
+	if f.updateFn != nil {
+		return f.updateFn(ctx, providerID, in)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderService) DeleteProvider(ctx context.Context, providerID string) error {
+	if f.deleteFn != nil {
+		return f.deleteFn(ctx, providerID)
+	}
+	return database.ErrNotFound
 }
 
 func (f *fakeProviderAdapter) Platform() string { return f.platform }
@@ -76,7 +118,7 @@ func (f *fakeProviderAdapter) DeleteProvider(_ context.Context, providerID strin
 func TestListProviders_EmptyReturnsEmpty(t *testing.T) {
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	fake := servicetesting.NewFakeRegistry()
+	fake := &fakeProviderService{}
 	kubernetesAdapter := &fakeProviderAdapter{platform: "kubernetes", providers: map[string]*models.Provider{}}
 	v0.RegisterProvidersEndpoints(api, "/v0", fake, v0.PlatformExtensions{
 		ProviderPlatforms: map[string]registrytypes.ProviderPlatformAdapter{
@@ -96,9 +138,9 @@ func TestListProviders_EmptyReturnsEmpty(t *testing.T) {
 func TestCreateAndGetProvider(t *testing.T) {
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	fake := servicetesting.NewFakeRegistry()
+	fake := &fakeProviderService{}
 
-	fake.CreateProviderFn = func(_ context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
+	fake.createFn = func(_ context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
 		return &models.Provider{
 			ID:       "kubernetes-1",
 			Name:     in.Name,
@@ -106,7 +148,7 @@ func TestCreateAndGetProvider(t *testing.T) {
 			Config:   in.Config,
 		}, nil
 	}
-	fake.GetProviderByIDFn = func(_ context.Context, providerID string) (*models.Provider, error) {
+	fake.getProviderFn = func(_ context.Context, providerID string) (*models.Provider, error) {
 		if providerID != "kubernetes-1" {
 			return nil, database.ErrNotFound
 		}
@@ -151,7 +193,7 @@ func TestCreateAndGetProvider(t *testing.T) {
 func TestListProviders_WithData(t *testing.T) {
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	fake := servicetesting.NewFakeRegistry()
+	fake := &fakeProviderService{}
 	localAdapter := &fakeProviderAdapter{
 		platform: "local",
 		providers: map[string]*models.Provider{
@@ -185,8 +227,8 @@ func TestListProviders_WithData(t *testing.T) {
 func TestDeleteProvider_NotFound(t *testing.T) {
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	fake := servicetesting.NewFakeRegistry()
-	fake.DeleteProviderFn = func(_ context.Context, providerID string) error {
+	fake := &fakeProviderService{}
+	fake.deleteFn = func(_ context.Context, providerID string) error {
 		return database.ErrNotFound
 	}
 	v0.RegisterProvidersEndpoints(api, "/v0", fake, v0.PlatformExtensions{})

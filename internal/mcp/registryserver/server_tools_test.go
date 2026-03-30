@@ -3,19 +3,168 @@ package registryserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	servicetesting "github.com/agentregistry-dev/agentregistry/internal/registry/service/testing"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 	"github.com/modelcontextprotocol/registry/pkg/model"
 )
+
+type fakeMCPRegistry struct {
+	servers      []*apiv0.ServerResponse
+	agents       []*models.AgentResponse
+	skills       []*models.SkillResponse
+	deployments  []*models.Deployment
+	serverReadme *database.ServerReadme
+
+	listAgentsFn             func(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
+	getAgentByNameFn         func(ctx context.Context, agentName string) (*models.AgentResponse, error)
+	getAgentByNameVersionFn  func(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
+	listServersFn            func(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
+	getServerByNameVersionFn func(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error)
+	getAllServerVersionsFn   func(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error)
+	getServerReadmeLatestFn  func(ctx context.Context, serverName string) (*database.ServerReadme, error)
+	getServerReadmeByVerFn   func(ctx context.Context, serverName, version string) (*database.ServerReadme, error)
+	listSkillsFn             func(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error)
+	getSkillByNameFn         func(ctx context.Context, skillName string) (*models.SkillResponse, error)
+	getSkillByNameVersionFn  func(ctx context.Context, skillName, version string) (*models.SkillResponse, error)
+	getDeploymentsFn         func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	getDeploymentByIDFn      func(ctx context.Context, id string) (*models.Deployment, error)
+	deployServerFn           func(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	deployAgentFn            func(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	undeployFn               func(ctx context.Context, deployment *models.Deployment) error
+}
+
+func (f *fakeMCPRegistry) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	if f.listAgentsFn != nil {
+		return f.listAgentsFn(ctx, filter, cursor, limit)
+	}
+	return f.agents, "", nil
+}
+
+func (f *fakeMCPRegistry) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	if f.getAgentByNameFn != nil {
+		return f.getAgentByNameFn(ctx, agentName)
+	}
+	if len(f.agents) > 0 {
+		return f.agents[0], nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeMCPRegistry) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	if f.getAgentByNameVersionFn != nil {
+		return f.getAgentByNameVersionFn(ctx, agentName, version)
+	}
+	return f.GetAgentByName(ctx, agentName)
+}
+
+func (f *fakeMCPRegistry) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	if f.listServersFn != nil {
+		return f.listServersFn(ctx, filter, cursor, limit)
+	}
+	return f.servers, "", nil
+}
+
+func (f *fakeMCPRegistry) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	if f.getServerByNameVersionFn != nil {
+		return f.getServerByNameVersionFn(ctx, serverName, version)
+	}
+	if len(f.servers) > 0 {
+		return f.servers[0], nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeMCPRegistry) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	if f.getAllServerVersionsFn != nil {
+		return f.getAllServerVersionsFn(ctx, serverName)
+	}
+	return f.servers, nil
+}
+
+func (f *fakeMCPRegistry) GetServerReadmeLatest(ctx context.Context, serverName string) (*database.ServerReadme, error) {
+	if f.getServerReadmeLatestFn != nil {
+		return f.getServerReadmeLatestFn(ctx, serverName)
+	}
+	if f.serverReadme != nil {
+		return f.serverReadme, nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeMCPRegistry) GetServerReadmeByVersion(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
+	if f.getServerReadmeByVerFn != nil {
+		return f.getServerReadmeByVerFn(ctx, serverName, version)
+	}
+	return f.GetServerReadmeLatest(ctx, serverName)
+}
+
+func (f *fakeMCPRegistry) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+	if f.listSkillsFn != nil {
+		return f.listSkillsFn(ctx, filter, cursor, limit)
+	}
+	return f.skills, "", nil
+}
+
+func (f *fakeMCPRegistry) GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error) {
+	if f.getSkillByNameFn != nil {
+		return f.getSkillByNameFn(ctx, skillName)
+	}
+	if len(f.skills) > 0 {
+		return f.skills[0], nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeMCPRegistry) GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error) {
+	if f.getSkillByNameVersionFn != nil {
+		return f.getSkillByNameVersionFn(ctx, skillName, version)
+	}
+	return f.GetSkillByName(ctx, skillName)
+}
+
+func (f *fakeMCPRegistry) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	if f.getDeploymentsFn != nil {
+		return f.getDeploymentsFn(ctx, filter)
+	}
+	return f.deployments, nil
+}
+
+func (f *fakeMCPRegistry) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+	if f.getDeploymentByIDFn != nil {
+		return f.getDeploymentByIDFn(ctx, id)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeMCPRegistry) DeployServer(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	if f.deployServerFn != nil {
+		return f.deployServerFn(ctx, serverName, version, config, preferRemote, providerID)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (f *fakeMCPRegistry) DeployAgent(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	if f.deployAgentFn != nil {
+		return f.deployAgentFn(ctx, agentName, version, config, preferRemote, providerID)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (f *fakeMCPRegistry) UndeployDeployment(ctx context.Context, deployment *models.Deployment) error {
+	if f.undeployFn != nil {
+		return f.undeployFn(ctx, deployment)
+	}
+	return errors.New("not implemented")
+}
 
 func TestServerTools_ListAndReadme(t *testing.T) {
 	ctx := context.Background()
@@ -29,8 +178,7 @@ func TestServerTools_ListAndReadme(t *testing.T) {
 		SHA256:      []byte{0xaa, 0xbb},
 		FetchedAt:   time.Now(),
 	}
-	reg := servicetesting.NewFakeRegistry()
-	reg.Servers = []*apiv0.ServerResponse{
+	reg := &fakeMCPRegistry{servers: []*apiv0.ServerResponse{
 		{
 			Server: apiv0.ServerJSON{
 				Schema:      model.CurrentSchemaURL,
@@ -40,8 +188,7 @@ func TestServerTools_ListAndReadme(t *testing.T) {
 				Version:     "1.0.0",
 			},
 		},
-	}
-	reg.ServerReadme = readme
+	}, serverReadme: readme}
 
 	server := NewServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
@@ -103,8 +250,7 @@ func TestServerTools_ListAndReadme(t *testing.T) {
 func TestAgentAndSkillTools_ListAndGet(t *testing.T) {
 	ctx := context.Background()
 
-	reg := servicetesting.NewFakeRegistry()
-	reg.Agents = []*models.AgentResponse{
+	reg := &fakeMCPRegistry{agents: []*models.AgentResponse{
 		{
 			Agent: models.AgentJSON{
 				AgentManifest: models.AgentManifest{
@@ -117,8 +263,7 @@ func TestAgentAndSkillTools_ListAndGet(t *testing.T) {
 				Status:  string(model.StatusActive),
 			},
 		},
-	}
-	reg.Skills = []*models.SkillResponse{
+	}, skills: []*models.SkillResponse{
 		{
 			Skill: models.SkillJSON{
 				Name:    "com.example/skill",
@@ -127,7 +272,7 @@ func TestAgentAndSkillTools_ListAndGet(t *testing.T) {
 				Status:  string(model.StatusActive),
 			},
 		},
-	}
+	}}
 
 	server := NewServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()

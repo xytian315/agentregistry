@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/agentregistry-dev/agentregistry/internal/registry/embeddings"
-	servicetesting "github.com/agentregistry-dev/agentregistry/internal/registry/service/testing"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
@@ -15,6 +14,64 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type fakeIndexerRegistry struct {
+	Servers []*apiv0.ServerResponse
+	Agents  []*models.AgentResponse
+
+	ServerEmbeddingMeta map[string]*database.SemanticEmbeddingMetadata
+	AgentEmbeddingMeta  map[string]*database.SemanticEmbeddingMetadata
+
+	UpsertServerEmbeddingCalls int
+	UpsertAgentEmbeddingCalls  int
+}
+
+func newFakeIndexerRegistry() *fakeIndexerRegistry {
+	return &fakeIndexerRegistry{
+		ServerEmbeddingMeta: make(map[string]*database.SemanticEmbeddingMetadata),
+		AgentEmbeddingMeta:  make(map[string]*database.SemanticEmbeddingMetadata),
+	}
+}
+
+func (f *fakeIndexerRegistry) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	if cursor != "" {
+		return nil, "", nil
+	}
+	return f.Servers, "", nil
+}
+
+func (f *fakeIndexerRegistry) GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	key := serverName + "@" + version
+	if meta, ok := f.ServerEmbeddingMeta[key]; ok {
+		return meta, nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeIndexerRegistry) UpsertServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
+	f.UpsertServerEmbeddingCalls++
+	return nil
+}
+
+func (f *fakeIndexerRegistry) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	if cursor != "" {
+		return nil, "", nil
+	}
+	return f.Agents, "", nil
+}
+
+func (f *fakeIndexerRegistry) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	key := agentName + "@" + version
+	if meta, ok := f.AgentEmbeddingMeta[key]; ok {
+		return meta, nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeIndexerRegistry) UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
+	f.UpsertAgentEmbeddingCalls++
+	return nil
+}
 
 // mockProvider implements embeddings.Provider for testing.
 type mockProvider struct {
@@ -45,7 +102,7 @@ func (m *mockProvider) getCallCount() int {
 }
 
 func TestIndexer_Run_ProviderNil(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	indexer := NewIndexer(mockRegistry, nil, 1536)
 
 	opts := IndexOptions{
@@ -61,7 +118,7 @@ func TestIndexer_Run_ProviderNil(t *testing.T) {
 }
 
 func TestIndexer_Run_NoTargetsSelected(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	mockProv := &mockProvider{}
 	indexer := NewIndexer(mockRegistry, mockProv, 1536)
 
@@ -78,7 +135,7 @@ func TestIndexer_Run_NoTargetsSelected(t *testing.T) {
 }
 
 func TestIndexer_Run_ServersOnly(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	mockRegistry.Servers = []*apiv0.ServerResponse{
 		{
 			Server: apiv0.ServerJSON{
@@ -127,7 +184,7 @@ func TestIndexer_Run_ServersOnly(t *testing.T) {
 }
 
 func TestIndexer_Run_AgentsOnly(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	mockRegistry.Servers = []*apiv0.ServerResponse{
 		{
 			Server: apiv0.ServerJSON{
@@ -178,7 +235,7 @@ func TestIndexer_Run_AgentsOnly(t *testing.T) {
 }
 
 func TestIndexer_Run_DryRun(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	mockRegistry.Servers = []*apiv0.ServerResponse{
 		{
 			Server: apiv0.ServerJSON{
@@ -210,7 +267,7 @@ func TestIndexer_Run_DryRun(t *testing.T) {
 }
 
 func TestIndexer_Run_Force(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	mockRegistry.Servers = []*apiv0.ServerResponse{
 		{
 			Server: apiv0.ServerJSON{
@@ -246,7 +303,7 @@ func TestIndexer_Run_Force(t *testing.T) {
 }
 
 func TestIndexer_Run_SkipsUpToDate(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	server := &apiv0.ServerResponse{
 		Server: apiv0.ServerJSON{
 			Name:        "com.example/server1",
@@ -287,7 +344,7 @@ func TestIndexer_Run_SkipsUpToDate(t *testing.T) {
 }
 
 func TestIndexer_Run_ContextCancelled(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	mockRegistry.Servers = []*apiv0.ServerResponse{
 		{
 			Server: apiv0.ServerJSON{
@@ -318,7 +375,7 @@ func TestIndexer_Run_ContextCancelled(t *testing.T) {
 }
 
 func TestIndexer_Run_ProgressCallback(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	// Add enough servers to trigger progress callback
 	for i := range 5 {
 		mockRegistry.Servers = append(mockRegistry.Servers, &apiv0.ServerResponse{
@@ -362,7 +419,7 @@ func TestIndexer_Run_ProgressCallback(t *testing.T) {
 }
 
 func TestIndexer_Run_EmptyPayloadSkipped(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	// Server with empty description - should produce empty payload
 	mockRegistry.Servers = []*apiv0.ServerResponse{
 		{
@@ -393,7 +450,7 @@ func TestIndexer_Run_EmptyPayloadSkipped(t *testing.T) {
 }
 
 func TestIndexer_Run_BothServersAndAgents(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	mockRegistry.Servers = []*apiv0.ServerResponse{
 		{
 			Server: apiv0.ServerJSON{
@@ -436,7 +493,7 @@ func TestIndexer_Run_BothServersAndAgents(t *testing.T) {
 }
 
 func TestIndexer_Run_DefaultBatchSize(t *testing.T) {
-	mockRegistry := servicetesting.NewFakeRegistry()
+	mockRegistry := newFakeIndexerRegistry()
 	mockRegistry.Servers = []*apiv0.ServerResponse{
 		{
 			Server: apiv0.ServerJSON{

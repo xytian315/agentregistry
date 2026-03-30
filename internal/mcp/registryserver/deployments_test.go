@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	servicetesting "github.com/agentregistry-dev/agentregistry/internal/registry/service/testing"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -27,11 +26,11 @@ func TestDeploymentTools_ListAndGet(t *testing.T) {
 		Env:          map[string]string{"ENV_FOO": "bar"},
 	}
 
-	reg := servicetesting.NewFakeRegistry()
-	reg.GetDeploymentsFn = func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	reg := &fakeMCPRegistry{}
+	reg.getDeploymentsFn = func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 		return []*models.Deployment{dep}, nil
 	}
-	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
+	reg.getDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		if id == dep.ID {
 			return dep, nil
 		}
@@ -84,13 +83,13 @@ func TestDeploymentTools_ListAndGet(t *testing.T) {
 func TestDeploymentTools_NoAuthConfigured_AllowsRequests(t *testing.T) {
 	ctx := context.Background()
 	// No authz provider configured; auth should be bypassed.
-	reg := servicetesting.NewFakeRegistry()
-	reg.GetDeploymentsFn = func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	reg := &fakeMCPRegistry{}
+	reg.getDeploymentsFn = func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 		return []*models.Deployment{
 			{ServerName: "com.example/no-auth", Version: "1.0.0", ResourceType: "mcp", Env: map[string]string{}},
 		}, nil
 	}
-	reg.GetDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
+	reg.getDeploymentByIDFn = func(ctx context.Context, id string) (*models.Deployment, error) {
 		return &models.Deployment{ID: id, ServerName: "com.example/no-auth", Version: "1.0.0", ResourceType: "mcp", Env: map[string]string{}}, nil
 	}
 
@@ -158,23 +157,20 @@ func TestDeploymentTools_DeployRemove(t *testing.T) {
 	}
 
 	var removed bool
-	reg := servicetesting.NewFakeRegistry()
-	reg.DeployServerFn = func(ctx context.Context, name, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	reg := &fakeMCPRegistry{}
+	reg.deployServerFn = func(ctx context.Context, name, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
 		return deployed, nil
 	}
-	reg.DeployAgentFn = func(ctx context.Context, name, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	reg.deployAgentFn = func(ctx context.Context, name, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
 		return agentDep, nil
 	}
-	reg.GetDeploymentByIDFn = func(_ context.Context, id string) (*models.Deployment, error) {
+	reg.getDeploymentByIDFn = func(_ context.Context, id string) (*models.Deployment, error) {
 		if id == deployed.ID {
 			return deployed, nil
 		}
 		return nil, errors.New("not found")
 	}
-	reg.GetProviderByIDFn = func(_ context.Context, providerID string) (*models.Provider, error) {
-		return &models.Provider{ID: providerID, Platform: "local"}, nil
-	}
-	reg.UndeployDeploymentFn = func(_ context.Context, deployment *models.Deployment) error {
+	reg.undeployFn = func(_ context.Context, deployment *models.Deployment) error {
 		if deployment != nil && deployment.ID == deployed.ID {
 			removed = true
 			return nil
@@ -262,8 +258,8 @@ func TestDeploymentTools_FilterResourceType(t *testing.T) {
 		},
 	}
 
-	reg := servicetesting.NewFakeRegistry()
-	reg.GetDeploymentsFn = func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	reg := &fakeMCPRegistry{}
+	reg.getDeploymentsFn = func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 		return deployments, nil
 	}
 
@@ -303,7 +299,7 @@ func TestDeploymentTools_FilterResourceType(t *testing.T) {
 
 func TestDeploymentTools_GetDeploymentRequiresID(t *testing.T) {
 	ctx := context.Background()
-	reg := servicetesting.NewFakeRegistry()
+	reg := &fakeMCPRegistry{}
 
 	server := NewServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
@@ -330,7 +326,7 @@ func TestDeploymentTools_GetDeploymentRequiresID(t *testing.T) {
 
 func TestDeploymentTools_RemoveDeploymentRequiresID(t *testing.T) {
 	ctx := context.Background()
-	reg := servicetesting.NewFakeRegistry()
+	reg := &fakeMCPRegistry{}
 
 	server := NewServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()

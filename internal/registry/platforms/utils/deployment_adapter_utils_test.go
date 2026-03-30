@@ -5,11 +5,58 @@ import (
 	"testing"
 
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
-	servicetesting "github.com/agentregistry-dev/agentregistry/internal/registry/service/testing"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
+	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 	"github.com/modelcontextprotocol/registry/pkg/model"
 )
+
+type fakePlatformRuntimeRegistry struct {
+	agentResp         *models.AgentResponse
+	getAgentFn        func(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
+	resolveSkillsFn   func(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error)
+	resolvePromptsFn  func(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error)
+	getServerByVerFn  func(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error)
+	getProviderByIDFn func(ctx context.Context, providerID string) (*models.Provider, error)
+}
+
+func (f *fakePlatformRuntimeRegistry) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	if f.getProviderByIDFn != nil {
+		return f.getProviderByIDFn(ctx, providerID)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakePlatformRuntimeRegistry) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	if f.getServerByVerFn != nil {
+		return f.getServerByVerFn(ctx, serverName, version)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakePlatformRuntimeRegistry) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	if f.getAgentFn != nil {
+		return f.getAgentFn(ctx, agentName, version)
+	}
+	if f.agentResp != nil {
+		return f.agentResp, nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakePlatformRuntimeRegistry) ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error) {
+	if f.resolveSkillsFn != nil {
+		return f.resolveSkillsFn(ctx, manifest)
+	}
+	return nil, nil
+}
+
+func (f *fakePlatformRuntimeRegistry) ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error) {
+	if f.resolvePromptsFn != nil {
+		return f.resolvePromptsFn(ctx, manifest)
+	}
+	return nil, nil
+}
 
 func TestSplitDeploymentRuntimeInputs(t *testing.T) {
 	envValues, argValues, headerValues := splitDeploymentRuntimeInputs(map[string]string{
@@ -171,8 +218,7 @@ func TestTranslateMCPServerLocalIncludesOverridesAndExtraArgs(t *testing.T) {
 }
 
 func TestResolveAgentDefaultsLocalPort(t *testing.T) {
-	registry := servicetesting.NewFakeRegistry()
-	registry.Agents = []*models.AgentResponse{{
+	registry := &fakePlatformRuntimeRegistry{agentResp: &models.AgentResponse{
 		Agent: models.AgentJSON{
 			AgentManifest: models.AgentManifest{
 				Name:          "planner",
@@ -198,9 +244,8 @@ func TestResolveAgentDefaultsLocalPort(t *testing.T) {
 }
 
 func TestResolveAgentNamespaceDefaulting(t *testing.T) {
-	newRegistry := func() *servicetesting.FakeRegistry {
-		r := servicetesting.NewFakeRegistry()
-		r.Agents = []*models.AgentResponse{{
+	newRegistry := func() *fakePlatformRuntimeRegistry {
+		return &fakePlatformRuntimeRegistry{agentResp: &models.AgentResponse{
 			Agent: models.AgentJSON{
 				AgentManifest: models.AgentManifest{
 					Name:          "planner",
@@ -210,7 +255,6 @@ func TestResolveAgentNamespaceDefaulting(t *testing.T) {
 				Version: "1.0.0",
 			},
 		}}
-		return r
 	}
 
 	tests := []struct {

@@ -6,11 +6,54 @@ import (
 
 	"github.com/agentregistry-dev/agentregistry/internal/cli/agent/frameworks/common"
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
-	servicetesting "github.com/agentregistry-dev/agentregistry/internal/registry/service/testing"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	composetypes "github.com/compose-spec/compose-go/v2/types"
+	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 )
+
+type fakeLocalPlatformRuntimeRegistry struct {
+	getAgentFn        func(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
+	resolveSkillsFn   func(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error)
+	resolvePromptsFn  func(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error)
+	getServerByVerFn  func(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error)
+	getProviderByIDFn func(ctx context.Context, providerID string) (*models.Provider, error)
+}
+
+func (f *fakeLocalPlatformRuntimeRegistry) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	if f.getProviderByIDFn != nil {
+		return f.getProviderByIDFn(ctx, providerID)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeLocalPlatformRuntimeRegistry) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	if f.getServerByVerFn != nil {
+		return f.getServerByVerFn(ctx, serverName, version)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeLocalPlatformRuntimeRegistry) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	if f.getAgentFn != nil {
+		return f.getAgentFn(ctx, agentName, version)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeLocalPlatformRuntimeRegistry) ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error) {
+	if f.resolveSkillsFn != nil {
+		return f.resolveSkillsFn(ctx, manifest)
+	}
+	return nil, nil
+}
+
+func (f *fakeLocalPlatformRuntimeRegistry) ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error) {
+	if f.resolvePromptsFn != nil {
+		return f.resolvePromptsFn(ctx, manifest)
+	}
+	return nil, nil
+}
 
 func TestUndeploy_RemovesLocalArtifactsWhenRegistryArtifactIsMissing(t *testing.T) {
 	tempDir := t.TempDir()
@@ -89,8 +132,8 @@ func TestUndeploy_RemovesLocalArtifactsWhenRegistryArtifactIsMissing(t *testing.
 		t.Fatalf("WriteLocalPlatformFiles() error = %v", err)
 	}
 
-	registry := servicetesting.NewFakeRegistry()
-	registry.GetAgentByNameAndVersionFn = func(context.Context, string, string) (*models.AgentResponse, error) {
+	registry := &fakeLocalPlatformRuntimeRegistry{}
+	registry.getAgentFn = func(context.Context, string, string) (*models.AgentResponse, error) {
 		return nil, database.ErrNotFound
 	}
 
@@ -208,8 +251,8 @@ func TestUndeploy_CallsComposeDownWhenNoServicesRemain(t *testing.T) {
 		t.Fatalf("WriteLocalPlatformFiles() error = %v", err)
 	}
 
-	registry := servicetesting.NewFakeRegistry()
-	registry.GetAgentByNameAndVersionFn = func(context.Context, string, string) (*models.AgentResponse, error) {
+	registry := &fakeLocalPlatformRuntimeRegistry{}
+	registry.getAgentFn = func(context.Context, string, string) (*models.AgentResponse, error) {
 		return nil, database.ErrNotFound
 	}
 
@@ -260,8 +303,8 @@ func TestDeploy_WritesPromptsConfig(t *testing.T) {
 		Env:          map[string]string{},
 	}
 
-	registry := servicetesting.NewFakeRegistry()
-	registry.GetAgentByNameAndVersionFn = func(_ context.Context, name, version string) (*models.AgentResponse, error) {
+	registry := &fakeLocalPlatformRuntimeRegistry{}
+	registry.getAgentFn = func(_ context.Context, name, version string) (*models.AgentResponse, error) {
 		return &models.AgentResponse{
 			Agent: models.AgentJSON{
 				AgentManifest: models.AgentManifest{
@@ -272,7 +315,7 @@ func TestDeploy_WritesPromptsConfig(t *testing.T) {
 			},
 		}, nil
 	}
-	registry.ResolveAgentManifestPromptsFn = func(_ context.Context, _ *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error) {
+	registry.resolvePromptsFn = func(_ context.Context, _ *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error) {
 		return []platformtypes.ResolvedPrompt{
 			{Name: "system-prompt", Content: "You are a helpful assistant."},
 		}, nil

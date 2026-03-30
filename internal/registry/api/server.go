@@ -131,11 +131,10 @@ func TrailingSlashMiddleware(next http.Handler) http.Handler {
 
 // Server represents the HTTP server
 type Server struct {
-	config   *config.Config
-	registry service.APIRouteService
-	humaAPI  huma.API
-	mux      *http.ServeMux
-	server   *http.Server
+	config  *config.Config
+	humaAPI huma.API
+	mux     *http.ServeMux
+	server  *http.Server
 }
 
 // HumaAPI returns the Huma API instance, allowing registration of new routes
@@ -192,10 +191,9 @@ func NewServer(cfg *config.Config, registryService service.APIRouteService, metr
 	handler := TrailingSlashMiddleware(corsHandler.Handler(mux))
 
 	server := &Server{
-		config:   cfg,
-		registry: registryService,
-		humaAPI:  api,
-		mux:      mux,
+		config:  cfg,
+		humaAPI: api,
+		mux:     mux,
 		server: &http.Server{
 			Addr:              cfg.ServerAddress,
 			Handler:           handler,
