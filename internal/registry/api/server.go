@@ -132,7 +132,7 @@ func TrailingSlashMiddleware(next http.Handler) http.Handler {
 // Server represents the HTTP server
 type Server struct {
 	config   *config.Config
-	registry service.RegistryService
+	registry service.APIRouteService
 	humaAPI  huma.API
 	mux      *http.ServeMux
 	server   *http.Server
@@ -150,7 +150,7 @@ func (s *Server) Mux() *http.ServeMux {
 
 // NewServer creates a new HTTP server
 // Note: AuthZ is handled at the DB/service layer, not at the API layer.
-func NewServer(cfg *config.Config, registryService service.RegistryService, metrics *telemetry.Metrics, versionInfo *apitypes.VersionBody, customUIHandler http.Handler, authnProvider auth.AuthnProvider, routeOpts *router.RouteOptions) *Server {
+func NewServer(cfg *config.Config, registryService service.APIRouteService, metrics *telemetry.Metrics, versionInfo *apitypes.VersionBody, customUIHandler http.Handler, authnProvider auth.AuthnProvider, routeOpts *router.RouteOptions) *Server {
 	// Create HTTP mux and Huma API
 	mux := http.NewServeMux()
 

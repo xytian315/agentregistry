@@ -110,6 +110,16 @@ type PlatformRuntimeService interface {
 	ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error)
 }
 
+// APIRouteService defines the registry operations needed by the HTTP API routing layer.
+type APIRouteService interface {
+	ServerService
+	AgentService
+	SkillService
+	PromptService
+	ProviderService
+	DeploymentService
+}
+
 // ProviderService defines provider lifecycle operations.
 type ProviderService interface {
 	// ListProviders retrieves deployment target providers, optionally filtered by provider platform type.

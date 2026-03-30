@@ -34,7 +34,7 @@ type RouteOptions struct {
 func RegisterRoutes(
 	api huma.API,
 	cfg *config.Config,
-	registry service.RegistryService,
+	registry service.APIRouteService,
 	metrics *telemetry.Metrics,
 	versionInfo *apitypes.VersionBody,
 	opts *RouteOptions,
