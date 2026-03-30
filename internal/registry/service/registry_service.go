@@ -60,6 +60,8 @@ func IsUnsupportedDeploymentPlatformError(err error) bool {
 // registryServiceImpl implements the RegistryService interface using our Database.
 type registryServiceImpl struct {
 	db                 database.Database
+	serverRepo         database.ServerRepository
+	agentRepo          database.AgentRepository
 	providerRepo       database.ProviderRepository
 	deploymentRepo     database.DeploymentRepository
 	cfg                *config.Config
@@ -81,6 +83,8 @@ func NewRegistryService(
 ) RegistryService {
 	return &registryServiceImpl{
 		db:                 db,
+		serverRepo:         db,
+		agentRepo:          db,
 		providerRepo:       db,
 		deploymentRepo:     db,
 		cfg:                cfg,
@@ -96,9 +100,23 @@ func (s *registryServiceImpl) SetPlatformAdapters(
 	s.deploymentAdapters = deploymentPlatforms
 }
 
+func (s *registryServiceImpl) serverStoreDB() database.ServerRepository {
+	if s.serverRepo != nil {
+		return s.serverRepo
+	}
+	return s.db
+}
+
 func (s *registryServiceImpl) providerStoreDB() database.ProviderRepository {
 	if s.providerRepo != nil {
 		return s.providerRepo
+	}
+	return s.db
+}
+
+func (s *registryServiceImpl) agentStoreDB() database.AgentRepository {
+	if s.agentRepo != nil {
+		return s.agentRepo
 	}
 	return s.db
 }
@@ -141,7 +159,7 @@ func (s *registryServiceImpl) ListServers(ctx context.Context, filter *database.
 	}
 
 	// Use the database's ListServers method with pagination and filtering
-	serverRecords, nextCursor, err := s.db.ListServers(ctx, nil, filter, cursor, limit)
+	serverRecords, nextCursor, err := s.serverStoreDB().ListServers(ctx, nil, filter, cursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
@@ -151,7 +169,7 @@ func (s *registryServiceImpl) ListServers(ctx context.Context, filter *database.
 
 // GetServerByName retrieves the latest version of a server by its server name
 func (s *registryServiceImpl) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
-	serverRecord, err := s.db.GetServerByName(ctx, nil, serverName)
+	serverRecord, err := s.serverStoreDB().GetServerByName(ctx, nil, serverName)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +179,7 @@ func (s *registryServiceImpl) GetServerByName(ctx context.Context, serverName st
 
 // GetServerByNameAndVersion retrieves a specific version of a server by server name and version
 func (s *registryServiceImpl) GetServerByNameAndVersion(ctx context.Context, serverName string, version string) (*apiv0.ServerResponse, error) {
-	serverRecord, err := s.db.GetServerByNameAndVersion(ctx, nil, serverName, version)
+	serverRecord, err := s.serverStoreDB().GetServerByNameAndVersion(ctx, nil, serverName, version)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +189,7 @@ func (s *registryServiceImpl) GetServerByNameAndVersion(ctx context.Context, ser
 
 // GetAllVersionsByServerName retrieves all versions of a server by server name
 func (s *registryServiceImpl) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
-	serverRecords, err := s.db.GetAllVersionsByServerName(ctx, nil, serverName)
+	serverRecords, err := s.serverStoreDB().GetAllVersionsByServerName(ctx, nil, serverName)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +216,7 @@ func (s *registryServiceImpl) createServerInTransaction(ctx context.Context, tx 
 	serverJSON := *req
 
 	// Serialize concurrent creates for the same server to avoid idx_unique_latest_per_server violations
-	if err := s.db.AcquireServerCreateLock(ctx, tx, serverJSON.Name); err != nil {
+	if err := s.serverStoreDB().AcquireServerCreateLock(ctx, tx, serverJSON.Name); err != nil {
 		return nil, err
 	}
 
@@ -208,7 +226,7 @@ func (s *registryServiceImpl) createServerInTransaction(ctx context.Context, tx 
 	}
 
 	// Check we haven't exceeded the maximum versions allowed for a server
-	versionCount, err := s.db.CountServerVersions(ctx, tx, serverJSON.Name)
+	versionCount, err := s.serverStoreDB().CountServerVersions(ctx, tx, serverJSON.Name)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return nil, err
 	}
@@ -217,7 +235,7 @@ func (s *registryServiceImpl) createServerInTransaction(ctx context.Context, tx 
 	}
 
 	// Check this isn't a duplicate version
-	versionExists, err := s.db.CheckVersionExists(ctx, tx, serverJSON.Name, serverJSON.Version)
+	versionExists, err := s.serverStoreDB().CheckVersionExists(ctx, tx, serverJSON.Name, serverJSON.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +244,7 @@ func (s *registryServiceImpl) createServerInTransaction(ctx context.Context, tx 
 	}
 
 	// Get current latest version to determine if new version should be latest
-	currentLatest, err := s.db.GetCurrentLatestVersion(ctx, tx, serverJSON.Name)
+	currentLatest, err := s.serverStoreDB().GetCurrentLatestVersion(ctx, tx, serverJSON.Name)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return nil, err
 	}
@@ -248,7 +266,7 @@ func (s *registryServiceImpl) createServerInTransaction(ctx context.Context, tx 
 
 	// Unmark old latest version if needed
 	if isNewLatest && currentLatest != nil {
-		if err := s.db.UnmarkAsLatest(ctx, tx, serverJSON.Name); err != nil {
+		if err := s.serverStoreDB().UnmarkAsLatest(ctx, tx, serverJSON.Name); err != nil {
 			return nil, err
 		}
 	}
@@ -262,7 +280,7 @@ func (s *registryServiceImpl) createServerInTransaction(ctx context.Context, tx 
 	}
 
 	// Insert new server version
-	result, err := s.db.CreateServer(ctx, tx, &serverJSON, officialMeta)
+	result, err := s.serverStoreDB().CreateServer(ctx, tx, &serverJSON, officialMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +314,7 @@ func (s *registryServiceImpl) validateNoDuplicateRemoteURLs(ctx context.Context,
 		// Use filter to find servers with this remote URL
 		filter := &database.ServerFilter{RemoteURL: &remote.URL}
 
-		conflictingServers, _, err := s.db.ListServers(ctx, tx, filter, "", 1000)
+		conflictingServers, _, err := s.serverStoreDB().ListServers(ctx, tx, filter, "", 1000)
 		if err != nil {
 			return fmt.Errorf("failed to check remote URL conflict: %w", err)
 		}
@@ -443,7 +461,7 @@ func (s *registryServiceImpl) UpdateServer(ctx context.Context, serverName, vers
 // updateServerInTransaction contains the actual UpdateServer logic within a transaction
 func (s *registryServiceImpl) updateServerInTransaction(ctx context.Context, tx pgx.Tx, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error) {
 	// Get current server to check if it's deleted or being deleted
-	currentServer, err := s.db.GetServerByNameAndVersion(ctx, tx, serverName, version)
+	currentServer, err := s.serverStoreDB().GetServerByNameAndVersion(ctx, tx, serverName, version)
 	if err != nil {
 		return nil, err
 	}
@@ -469,14 +487,14 @@ func (s *registryServiceImpl) updateServerInTransaction(ctx context.Context, tx 
 	}
 
 	// Update server in database
-	updatedServerResponse, err := s.db.UpdateServer(ctx, tx, serverName, version, &updatedServer)
+	updatedServerResponse, err := s.serverStoreDB().UpdateServer(ctx, tx, serverName, version, &updatedServer)
 	if err != nil {
 		return nil, err
 	}
 
 	// Handle status change if provided
 	if newStatus != nil {
-		updatedWithStatus, err := s.db.SetServerStatus(ctx, tx, serverName, version, *newStatus)
+		updatedWithStatus, err := s.serverStoreDB().SetServerStatus(ctx, tx, serverName, version, *newStatus)
 		if err != nil {
 			return nil, err
 		}
@@ -495,7 +513,7 @@ func (s *registryServiceImpl) StoreServerReadme(ctx context.Context, serverName,
 	}
 
 	return s.db.InTransaction(ctx, func(txCtx context.Context, tx pgx.Tx) error {
-		if _, err := s.db.GetServerByNameAndVersion(txCtx, tx, serverName, version); err != nil {
+		if _, err := s.serverStoreDB().GetServerByNameAndVersion(txCtx, tx, serverName, version); err != nil {
 			return err
 		}
 
@@ -508,7 +526,7 @@ func (s *registryServiceImpl) StoreServerReadme(ctx context.Context, serverName,
 			FetchedAt:   time.Now(),
 		}
 
-		if err := s.db.UpsertServerReadme(txCtx, tx, readme); err != nil {
+		if err := s.serverStoreDB().UpsertServerReadme(txCtx, tx, readme); err != nil {
 			return err
 		}
 
@@ -517,17 +535,17 @@ func (s *registryServiceImpl) StoreServerReadme(ctx context.Context, serverName,
 }
 
 func (s *registryServiceImpl) GetServerReadmeLatest(ctx context.Context, serverName string) (*database.ServerReadme, error) {
-	return s.db.GetLatestServerReadme(ctx, nil, serverName)
+	return s.serverStoreDB().GetLatestServerReadme(ctx, nil, serverName)
 }
 
 func (s *registryServiceImpl) GetServerReadmeByVersion(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
-	return s.db.GetServerReadme(ctx, nil, serverName, version)
+	return s.serverStoreDB().GetServerReadme(ctx, nil, serverName, version)
 }
 
 // DeleteServer permanently removes a server version from the registry
 func (s *registryServiceImpl) DeleteServer(ctx context.Context, serverName, version string) error {
 	return s.db.InTransaction(ctx, func(txCtx context.Context, tx pgx.Tx) error {
-		return s.db.DeleteServer(txCtx, tx, serverName, version)
+		return s.serverStoreDB().DeleteServer(txCtx, tx, serverName, version)
 	})
 }
 
@@ -567,7 +585,7 @@ func (s *registryServiceImpl) ListAgents(ctx context.Context, filter *database.A
 			return nil, "", err
 		}
 	}
-	agents, next, err := s.db.ListAgents(ctx, nil, filter, cursor, limit)
+	agents, next, err := s.agentStoreDB().ListAgents(ctx, nil, filter, cursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
@@ -576,17 +594,17 @@ func (s *registryServiceImpl) ListAgents(ctx context.Context, filter *database.A
 
 // GetAgentByName retrieves the latest version of an agent by its name
 func (s *registryServiceImpl) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
-	return s.db.GetAgentByName(ctx, nil, agentName)
+	return s.agentStoreDB().GetAgentByName(ctx, nil, agentName)
 }
 
 // GetAgentByNameAndVersion retrieves a specific version of an agent by name and version
 func (s *registryServiceImpl) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
-	return s.db.GetAgentByNameAndVersion(ctx, nil, agentName, version)
+	return s.agentStoreDB().GetAgentByNameAndVersion(ctx, nil, agentName, version)
 }
 
 // GetAllVersionsByAgentName retrieves all versions for an agent
 func (s *registryServiceImpl) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
-	return s.db.GetAllVersionsByAgentName(ctx, nil, agentName)
+	return s.agentStoreDB().GetAllVersionsByAgentName(ctx, nil, agentName)
 }
 
 // CreateAgent creates a new agent version
@@ -608,7 +626,7 @@ func (s *registryServiceImpl) createAgentInTransaction(ctx context.Context, tx p
 	// Check duplicate remote URLs among agents
 	for _, remote := range agentJSON.Remotes {
 		filter := &database.AgentFilter{RemoteURL: &remote.URL}
-		existing, _, err := s.db.ListAgents(ctx, tx, filter, "", 1000)
+		existing, _, err := s.agentStoreDB().ListAgents(ctx, tx, filter, "", 1000)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
 		}
@@ -620,7 +638,7 @@ func (s *registryServiceImpl) createAgentInTransaction(ctx context.Context, tx p
 	}
 
 	// Enforce maximum versions per agent similar to servers
-	versionCount, err := s.db.CountAgentVersions(ctx, tx, agentJSON.Name)
+	versionCount, err := s.agentStoreDB().CountAgentVersions(ctx, tx, agentJSON.Name)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return nil, err
 	}
@@ -629,7 +647,7 @@ func (s *registryServiceImpl) createAgentInTransaction(ctx context.Context, tx p
 	}
 
 	// Prevent duplicate version
-	exists, err := s.db.CheckAgentVersionExists(ctx, tx, agentJSON.Name, agentJSON.Version)
+	exists, err := s.agentStoreDB().CheckAgentVersionExists(ctx, tx, agentJSON.Name, agentJSON.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -638,7 +656,7 @@ func (s *registryServiceImpl) createAgentInTransaction(ctx context.Context, tx p
 	}
 
 	// Determine latest
-	currentLatest, err := s.db.GetCurrentLatestAgentVersion(ctx, tx, agentJSON.Name)
+	currentLatest, err := s.agentStoreDB().GetCurrentLatestAgentVersion(ctx, tx, agentJSON.Name)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return nil, err
 	}
@@ -656,7 +674,7 @@ func (s *registryServiceImpl) createAgentInTransaction(ctx context.Context, tx p
 	}
 
 	if isNewLatest && currentLatest != nil {
-		if err := s.db.UnmarkAgentAsLatest(ctx, tx, agentJSON.Name); err != nil {
+		if err := s.agentStoreDB().UnmarkAgentAsLatest(ctx, tx, agentJSON.Name); err != nil {
 			return nil, err
 		}
 	}
@@ -668,7 +686,7 @@ func (s *registryServiceImpl) createAgentInTransaction(ctx context.Context, tx p
 		IsLatest:    isNewLatest,
 	}
 
-	result, err := s.db.CreateAgent(ctx, tx, &agentJSON, officialMeta)
+	result, err := s.agentStoreDB().CreateAgent(ctx, tx, &agentJSON, officialMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -698,28 +716,28 @@ func (s *registryServiceImpl) createAgentInTransaction(ctx context.Context, tx p
 // DeleteAgent permanently removes an agent version from the registry
 func (s *registryServiceImpl) DeleteAgent(ctx context.Context, agentName, version string) error {
 	return s.db.InTransaction(ctx, func(txCtx context.Context, tx pgx.Tx) error {
-		return s.db.DeleteAgent(txCtx, tx, agentName, version)
+		return s.agentStoreDB().DeleteAgent(txCtx, tx, agentName, version)
 	})
 }
 
 func (s *registryServiceImpl) UpsertServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
 	return s.db.InTransaction(ctx, func(txCtx context.Context, tx pgx.Tx) error {
-		return s.db.SetServerEmbedding(txCtx, tx, serverName, version, embedding)
+		return s.serverStoreDB().SetServerEmbedding(txCtx, tx, serverName, version, embedding)
 	})
 }
 
 func (s *registryServiceImpl) GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
-	return s.db.GetServerEmbeddingMetadata(ctx, nil, serverName, version)
+	return s.serverStoreDB().GetServerEmbeddingMetadata(ctx, nil, serverName, version)
 }
 
 func (s *registryServiceImpl) UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
 	return s.db.InTransaction(ctx, func(txCtx context.Context, tx pgx.Tx) error {
-		return s.db.SetAgentEmbedding(txCtx, tx, agentName, version, embedding)
+		return s.agentStoreDB().SetAgentEmbedding(txCtx, tx, agentName, version, embedding)
 	})
 }
 
 func (s *registryServiceImpl) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
-	return s.db.GetAgentEmbeddingMetadata(ctx, nil, agentName, version)
+	return s.agentStoreDB().GetAgentEmbeddingMetadata(ctx, nil, agentName, version)
 }
 
 // ListProviders lists providers, optionally filtered by platform.
@@ -1203,7 +1221,7 @@ func (s *registryServiceImpl) createManagedDeploymentRecord(ctx context.Context,
 
 	switch deployment.ResourceType {
 	case resourceTypeMCP:
-		serverResp, err := s.db.GetServerByNameAndVersion(ctx, nil, deployment.ServerName, deployment.Version)
+		serverResp, err := s.serverStoreDB().GetServerByNameAndVersion(ctx, nil, deployment.ServerName, deployment.Version)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, fmt.Errorf("server %s not found in registry: %w", deployment.ServerName, database.ErrNotFound)
@@ -1212,7 +1230,7 @@ func (s *registryServiceImpl) createManagedDeploymentRecord(ctx context.Context,
 		}
 		deployment.Version = serverResp.Server.Version
 	case resourceTypeAgent:
-		agentResp, err := s.db.GetAgentByNameAndVersion(ctx, nil, deployment.ServerName, deployment.Version)
+		agentResp, err := s.agentStoreDB().GetAgentByNameAndVersion(ctx, nil, deployment.ServerName, deployment.Version)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, fmt.Errorf("agent %s not found in registry: %w", deployment.ServerName, database.ErrNotFound)

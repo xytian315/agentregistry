@@ -9,6 +9,58 @@ import (
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 )
 
+// ServerService defines server catalog and mutation operations.
+type ServerService interface {
+	// ListServers retrieve all servers with optional filtering
+	ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
+	// GetServerByName retrieve latest version of a server by server name
+	GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error)
+	// GetServerByNameAndVersion retrieve specific version of a server by server name and version
+	GetServerByNameAndVersion(ctx context.Context, serverName string, version string) (*apiv0.ServerResponse, error)
+	// GetAllVersionsByServerName retrieve all versions of a server by server name
+	GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error)
+	// CreateServer creates a new server version
+	CreateServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error)
+	// UpdateServer updates an existing server and optionally its status
+	UpdateServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error)
+	// StoreServerReadme stores or updates the README for a server version
+	StoreServerReadme(ctx context.Context, serverName, version string, content []byte, contentType string) error
+	// GetServerReadmeLatest retrieves the README for the latest server version
+	GetServerReadmeLatest(ctx context.Context, serverName string) (*database.ServerReadme, error)
+	// GetServerReadmeByVersion retrieves the README for a specific server version
+	GetServerReadmeByVersion(ctx context.Context, serverName, version string) (*database.ServerReadme, error)
+	// DeleteServer permanently removes a server version from the registry
+	DeleteServer(ctx context.Context, serverName, version string) error
+	// UpsertServerEmbedding stores semantic embedding metadata for a server version
+	UpsertServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error
+	// GetServerEmbeddingMetadata retrieves the embedding metadata for a server version
+	GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error)
+}
+
+// AgentService defines agent catalog and mutation operations.
+type AgentService interface {
+	// ListAgents retrieve all agents with optional filtering
+	ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
+	// GetAgentByName retrieve latest version of an agent by name
+	GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error)
+	// GetAgentByNameAndVersion retrieve specific version of an agent by name and version
+	GetAgentByNameAndVersion(ctx context.Context, agentName string, version string) (*models.AgentResponse, error)
+	// GetAllVersionsByAgentName retrieve all versions of an agent by name
+	GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error)
+	// CreateAgent creates a new agent version
+	CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error)
+	// ResolveAgentManifestSkills resolves manifest skill refs to concrete image or repo refs.
+	ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error)
+	// ResolveAgentManifestPrompts resolves manifest prompt refs to concrete prompt content.
+	ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error)
+	// DeleteAgent permanently removes an agent version from the registry
+	DeleteAgent(ctx context.Context, agentName, version string) error
+	// UpsertAgentEmbedding stores semantic embedding metadata for an agent version
+	UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error
+	// GetAgentEmbeddingMetadata retrieves the embedding metadata for an agent version
+	GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error)
+}
+
 // ProviderService defines provider lifecycle operations.
 type ProviderService interface {
 	// ListProviders retrieves deployment target providers, optionally filtered by provider platform type.
@@ -47,52 +99,8 @@ type DeploymentService interface {
 
 // RegistryService defines the interface for registry operations
 type RegistryService interface {
-	// ListServers retrieve all servers with optional filtering
-	ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
-	// GetServerByName retrieve latest version of a server by server name
-	GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error)
-	// GetServerByNameAndVersion retrieve specific version of a server by server name and version
-	GetServerByNameAndVersion(ctx context.Context, serverName string, version string) (*apiv0.ServerResponse, error)
-	// GetAllVersionsByServerName retrieve all versions of a server by server name
-	GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error)
-	// CreateServer creates a new server version
-	CreateServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error)
-	// UpdateServer updates an existing server and optionally its status
-	UpdateServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error)
-	// StoreServerReadme stores or updates the README for a server version
-	StoreServerReadme(ctx context.Context, serverName, version string, content []byte, contentType string) error
-	// GetServerReadmeLatest retrieves the README for the latest server version
-	GetServerReadmeLatest(ctx context.Context, serverName string) (*database.ServerReadme, error)
-	// GetServerReadmeByVersion retrieves the README for a specific server version
-	GetServerReadmeByVersion(ctx context.Context, serverName, version string) (*database.ServerReadme, error)
-	// DeleteServer permanently removes a server version from the registry
-	DeleteServer(ctx context.Context, serverName, version string) error
-	// UpsertServerEmbedding stores semantic embedding metadata for a server version
-	UpsertServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error
-	// GetServerEmbeddingMetadata retrieves the embedding metadata for a server version
-	GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error)
-
-	// Agents APIs
-	// ListAgents retrieve all agents with optional filtering
-	ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
-	// GetAgentByName retrieve latest version of an agent by name
-	GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error)
-	// GetAgentByNameAndVersion retrieve specific version of an agent by name and version
-	GetAgentByNameAndVersion(ctx context.Context, agentName string, version string) (*models.AgentResponse, error)
-	// GetAllVersionsByAgentName retrieve all versions of an agent by name
-	GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error)
-	// CreateAgent creates a new agent version
-	CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error)
-	// ResolveAgentManifestSkills resolves manifest skill refs to concrete image or repo refs.
-	ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error)
-	// ResolveAgentManifestPrompts resolves manifest prompt refs to concrete prompt content.
-	ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error)
-	// DeleteAgent permanently removes an agent version from the registry
-	DeleteAgent(ctx context.Context, agentName, version string) error
-	// UpsertAgentEmbedding stores semantic embedding metadata for an agent version
-	UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error
-	// GetAgentEmbeddingMetadata retrieves the embedding metadata for an agent version
-	GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error)
+	ServerService
+	AgentService
 	// Skills APIs
 	// ListSkills retrieve all skills with optional filtering
 	ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error)

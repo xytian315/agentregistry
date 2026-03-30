@@ -26,7 +26,7 @@ type EditServerInput struct {
 }
 
 // RegisterEditEndpoints registers the edit endpoint with a custom path prefix
-func RegisterEditEndpoints(api huma.API, pathPrefix string, registry service.RegistryService) {
+func RegisterEditEndpoints(api huma.API, pathPrefix string, serverSvc service.ServerService, deploymentSvc service.DeploymentService) {
 	// Edit server endpoint
 	huma.Register(api, huma.Operation{
 		OperationID: "edit-server" + strings.ReplaceAll(pathPrefix, "/", "-"),
@@ -52,7 +52,7 @@ func RegisterEditEndpoints(api huma.API, pathPrefix string, registry service.Reg
 		}
 
 		// Get current server to check permissions against existing name
-		currentServer, err := registry.GetServerByNameAndVersion(ctx, serverName, version)
+		currentServer, err := serverSvc.GetServerByNameAndVersion(ctx, serverName, version)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Server not found")
@@ -97,7 +97,7 @@ func RegisterEditEndpoints(api huma.API, pathPrefix string, registry service.Reg
 		if input.Status != "" {
 			statusPtr = &input.Status
 		}
-		updatedServer, err := registry.UpdateServer(ctx, serverName, version, &input.Body, statusPtr)
+		updatedServer, err := serverSvc.UpdateServer(ctx, serverName, version, &input.Body, statusPtr)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Server not found")
@@ -114,7 +114,7 @@ func RegisterEditEndpoints(api huma.API, pathPrefix string, registry service.Reg
 		return &types.Response[models.ServerResponse]{
 			Body: attachServerDeploymentMeta(
 				ctx,
-				registry,
+				deploymentSvc,
 				[]models.ServerResponse{normalizeServerResponse(updatedServer)},
 			)[0],
 		}, nil

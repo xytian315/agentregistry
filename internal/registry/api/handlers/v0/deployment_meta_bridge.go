@@ -14,8 +14,8 @@ type deploymentResourceKey struct {
 	resourceName string
 }
 
-func deploymentResourceIndex(ctx context.Context, registry service.RegistryService) map[deploymentResourceKey][]models.DeploymentSummary {
-	deployments, err := registry.GetDeployments(ctx, nil)
+func deploymentResourceIndex(ctx context.Context, deploymentSvc service.DeploymentService) map[deploymentResourceKey][]models.DeploymentSummary {
+	deployments, err := deploymentSvc.GetDeployments(ctx, nil)
 	if err != nil {
 		return map[deploymentResourceKey][]models.DeploymentSummary{}
 	}
@@ -79,10 +79,10 @@ func deploymentAppliesToVersion(summary models.DeploymentSummary, itemVersion st
 
 func attachServerDeploymentMeta(
 	ctx context.Context,
-	registry service.RegistryService,
+	deploymentSvc service.DeploymentService,
 	servers []models.ServerResponse,
 ) []models.ServerResponse {
-	deploymentIndex := deploymentResourceIndex(ctx, registry)
+	deploymentIndex := deploymentResourceIndex(ctx, deploymentSvc)
 	out := make([]models.ServerResponse, len(servers))
 	copy(out, servers)
 
@@ -116,10 +116,10 @@ func attachServerDeploymentMeta(
 
 func attachAgentDeploymentMeta(
 	ctx context.Context,
-	registry service.RegistryService,
+	deploymentSvc service.DeploymentService,
 	agents []models.AgentResponse,
 ) []models.AgentResponse {
-	deploymentIndex := deploymentResourceIndex(ctx, registry)
+	deploymentIndex := deploymentResourceIndex(ctx, deploymentSvc)
 	out := make([]models.AgentResponse, len(agents))
 	copy(out, agents)
 

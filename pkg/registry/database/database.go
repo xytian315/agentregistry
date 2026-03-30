@@ -106,36 +106,8 @@ type SemanticSearchOptions struct {
 	HybridSubstring *string
 }
 
-// ProviderRepository defines provider persistence operations.
-type ProviderRepository interface {
-	// CreateProvider creates a new provider record.
-	CreateProvider(ctx context.Context, tx pgx.Tx, in *models.CreateProviderInput) (*models.Provider, error)
-	// ListProviders lists provider records, optionally filtered by platform.
-	ListProviders(ctx context.Context, tx pgx.Tx, platform *string) ([]*models.Provider, error)
-	// GetProviderByID returns a provider by ID.
-	GetProviderByID(ctx context.Context, tx pgx.Tx, providerID string) (*models.Provider, error)
-	// UpdateProvider updates mutable provider fields.
-	UpdateProvider(ctx context.Context, tx pgx.Tx, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
-	// DeleteProvider removes a provider by ID.
-	DeleteProvider(ctx context.Context, tx pgx.Tx, providerID string) error
-}
-
-// DeploymentRepository defines deployment persistence operations.
-type DeploymentRepository interface {
-	// CreateDeployment creates a new deployment record
-	CreateDeployment(ctx context.Context, tx pgx.Tx, deployment *models.Deployment) error
-	// GetDeployments retrieves all deployed servers
-	GetDeployments(ctx context.Context, tx pgx.Tx, filter *models.DeploymentFilter) ([]*models.Deployment, error)
-	// GetDeploymentByID retrieves a specific deployment by UUID.
-	GetDeploymentByID(ctx context.Context, tx pgx.Tx, id string) (*models.Deployment, error)
-	// UpdateDeploymentState applies a partial state patch to a deployment by ID.
-	UpdateDeploymentState(ctx context.Context, tx pgx.Tx, id string, patch *models.DeploymentStatePatch) error
-	// RemoveDeploymentByID removes a deployment by ID.
-	RemoveDeploymentByID(ctx context.Context, tx pgx.Tx, id string) error
-}
-
-// Database defines the interface for database operations
-type Database interface {
+// ServerRepository defines server persistence operations.
+type ServerRepository interface {
 	// DeleteServer permanently removes a server version from the database
 	DeleteServer(ctx context.Context, tx pgx.Tx, serverName, version string) error
 	// CreateServer inserts a new server version with official metadata
@@ -161,7 +133,6 @@ type Database interface {
 	// UnmarkAsLatest marks the current latest version of a server as no longer latest
 	UnmarkAsLatest(ctx context.Context, tx pgx.Tx, serverName string) error
 	// AcquireServerCreateLock acquires a transaction-scoped advisory lock for creating a server version.
-	// Call at the start of a create-server transaction to serialize concurrent creates for the same server name.
 	AcquireServerCreateLock(ctx context.Context, tx pgx.Tx, serverName string) error
 	// SetServerEmbedding upserts the semantic embedding metadata for a server version
 	SetServerEmbedding(ctx context.Context, tx pgx.Tx, serverName, version string, embedding *SemanticEmbedding) error
@@ -173,12 +144,24 @@ type Database interface {
 	GetServerReadme(ctx context.Context, tx pgx.Tx, serverName, version string) (*ServerReadme, error)
 	// GetLatestServerReadme retrieves the README blob for the latest server version
 	GetLatestServerReadme(ctx context.Context, tx pgx.Tx, serverName string) (*ServerReadme, error)
-	// InTransaction executes a function within a database transaction
-	InTransaction(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
-	// Close closes the database connection
-	Close() error
+}
 
-	// Agents API
+// ProviderRepository defines provider persistence operations.
+type ProviderRepository interface {
+	// CreateProvider creates a new provider record.
+	CreateProvider(ctx context.Context, tx pgx.Tx, in *models.CreateProviderInput) (*models.Provider, error)
+	// ListProviders lists provider records, optionally filtered by platform.
+	ListProviders(ctx context.Context, tx pgx.Tx, platform *string) ([]*models.Provider, error)
+	// GetProviderByID returns a provider by ID.
+	GetProviderByID(ctx context.Context, tx pgx.Tx, providerID string) (*models.Provider, error)
+	// UpdateProvider updates mutable provider fields.
+	UpdateProvider(ctx context.Context, tx pgx.Tx, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
+	// DeleteProvider removes a provider by ID.
+	DeleteProvider(ctx context.Context, tx pgx.Tx, providerID string) error
+}
+
+// AgentRepository defines agent persistence operations.
+type AgentRepository interface {
 	// CreateAgent inserts a new agent version with official metadata
 	CreateAgent(ctx context.Context, tx pgx.Tx, agentJSON *models.AgentJSON, officialMeta *models.AgentRegistryExtensions) (*models.AgentResponse, error)
 	// UpdateAgent updates an existing agent record
@@ -207,6 +190,31 @@ type Database interface {
 	SetAgentEmbedding(ctx context.Context, tx pgx.Tx, agentName, version string, embedding *SemanticEmbedding) error
 	// GetAgentEmbeddingMetadata returns metadata about an agent's embedding without loading the vector
 	GetAgentEmbeddingMetadata(ctx context.Context, tx pgx.Tx, agentName, version string) (*SemanticEmbeddingMetadata, error)
+}
+
+// DeploymentRepository defines deployment persistence operations.
+type DeploymentRepository interface {
+	// CreateDeployment creates a new deployment record
+	CreateDeployment(ctx context.Context, tx pgx.Tx, deployment *models.Deployment) error
+	// GetDeployments retrieves all deployed servers
+	GetDeployments(ctx context.Context, tx pgx.Tx, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	// GetDeploymentByID retrieves a specific deployment by UUID.
+	GetDeploymentByID(ctx context.Context, tx pgx.Tx, id string) (*models.Deployment, error)
+	// UpdateDeploymentState applies a partial state patch to a deployment by ID.
+	UpdateDeploymentState(ctx context.Context, tx pgx.Tx, id string, patch *models.DeploymentStatePatch) error
+	// RemoveDeploymentByID removes a deployment by ID.
+	RemoveDeploymentByID(ctx context.Context, tx pgx.Tx, id string) error
+}
+
+// Database defines the interface for database operations
+type Database interface {
+	ServerRepository
+	// InTransaction executes a function within a database transaction
+	InTransaction(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
+	// Close closes the database connection
+	Close() error
+
+	AgentRepository
 
 	// Skills API
 	// CreateSkill inserts a new skill version with official metadata

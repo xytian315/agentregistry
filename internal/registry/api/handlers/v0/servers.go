@@ -98,7 +98,7 @@ type ServerReadmeResponse struct {
 }
 
 // RegisterServersEndpoints registers all server-related endpoints with a custom path prefix.
-func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.RegistryService) {
+func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc service.ServerService, deploymentSvc service.DeploymentService) {
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-server-version" + strings.ReplaceAll(pathPrefix, "/", "-"),
 		Method:      http.MethodDelete,
@@ -115,7 +115,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 		if err != nil {
 			return nil, huma.Error400BadRequest("Invalid version encoding", err)
 		}
-		if err := registry.DeleteServer(ctx, serverName, version); err != nil {
+		if err := serverSvc.DeleteServer(ctx, serverName, version); err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Server not found")
 			}
@@ -187,7 +187,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 		}
 
 		// Get paginated results with filtering
-		servers, nextCursor, err := registry.ListServers(ctx, filter, input.Cursor, input.Limit)
+		servers, nextCursor, err := serverSvc.ListServers(ctx, filter, input.Cursor, input.Limit)
 		if err != nil {
 			if errors.Is(err, database.ErrInvalidInput) {
 				return nil, huma.Error400BadRequest(err.Error(), err)
@@ -206,7 +206,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 		for i, server := range servers {
 			serverValues[i] = normalizeServerResponse(server)
 		}
-		serverValues = attachServerDeploymentMeta(ctx, registry, serverValues)
+		serverValues = attachServerDeploymentMeta(ctx, deploymentSvc, serverValues)
 
 		return &types.Response[models.ServerListResponse]{
 			Body: models.ServerListResponse{
@@ -243,7 +243,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 
 		// If all=true, return all versions
 		if input.All {
-			servers, err := registry.GetAllVersionsByServerName(ctx, serverName)
+			servers, err := serverSvc.GetAllVersionsByServerName(ctx, serverName)
 			if err != nil {
 				switch {
 				case err.Error() == errRecordNotFound, errors.Is(err, database.ErrNotFound):
@@ -262,7 +262,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 			for i, server := range servers {
 				serverValues[i] = normalizeServerResponse(server)
 			}
-			serverValues = attachServerDeploymentMeta(ctx, registry, serverValues)
+			serverValues = attachServerDeploymentMeta(ctx, deploymentSvc, serverValues)
 
 			return &types.Response[models.ServerListResponse]{
 				Body: models.ServerListResponse{
@@ -280,7 +280,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 		// Handle "latest" as a special version string
 		if version == "latest" { //nolint:nestif
 			// Get all versions and find the latest one
-			servers, err := registry.GetAllVersionsByServerName(ctx, serverName)
+			servers, err := serverSvc.GetAllVersionsByServerName(ctx, serverName)
 			if err != nil {
 				if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
 					return nil, huma.Error404NotFound("Server not found")
@@ -310,7 +310,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 			}
 			serverResponse = latestServer
 		} else {
-			serverResponse, err = registry.GetServerByNameAndVersion(ctx, serverName, version)
+			serverResponse, err = serverSvc.GetServerByNameAndVersion(ctx, serverName, version)
 			if err != nil {
 				if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
 					return nil, huma.Error404NotFound("Server not found")
@@ -330,7 +330,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 			Body: models.ServerListResponse{
 				Servers: attachServerDeploymentMeta(
 					ctx,
-					registry,
+					deploymentSvc,
 					[]models.ServerResponse{normalizeServerResponse(serverResponse)},
 				),
 				Metadata: models.ServerMetadata{
@@ -356,7 +356,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 		}
 
 		// Get all versions for this server
-		servers, err := registry.GetAllVersionsByServerName(ctx, serverName)
+		servers, err := serverSvc.GetAllVersionsByServerName(ctx, serverName)
 		if err != nil {
 			if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Server not found")
@@ -375,7 +375,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 		for i, server := range servers {
 			serverValues[i] = normalizeServerResponse(server)
 		}
-		serverValues = attachServerDeploymentMeta(ctx, registry, serverValues)
+		serverValues = attachServerDeploymentMeta(ctx, deploymentSvc, serverValues)
 
 		return &types.Response[models.ServerListResponse]{
 			Body: models.ServerListResponse{
@@ -401,7 +401,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 			return nil, huma.Error400BadRequest("Invalid server name encoding", err)
 		}
 
-		readme, err := registry.GetServerReadmeLatest(ctx, serverName)
+		readme, err := serverSvc.GetServerReadmeLatest(ctx, serverName)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("README not found")
@@ -440,9 +440,9 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, registry service.
 
 		var readme *database.ServerReadme
 		if version == "latest" {
-			readme, err = registry.GetServerReadmeLatest(ctx, serverName)
+			readme, err = serverSvc.GetServerReadmeLatest(ctx, serverName)
 		} else {
-			readme, err = registry.GetServerReadmeByVersion(ctx, serverName, version)
+			readme, err = serverSvc.GetServerReadmeByVersion(ctx, serverName, version)
 		}
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
@@ -484,9 +484,9 @@ type CreateServerInput struct {
 }
 
 // createServerHandler is the shared handler logic for creating servers
-func createServerHandler(ctx context.Context, input *CreateServerInput, registry service.RegistryService) (*types.Response[models.ServerResponse], error) {
+func createServerHandler(ctx context.Context, input *CreateServerInput, serverSvc service.ServerService, deploymentSvc service.DeploymentService) (*types.Response[models.ServerResponse], error) {
 	// Create/update the server (published defaults to false in the service layer)
-	createdServer, err := registry.CreateServer(ctx, &input.Body)
+	createdServer, err := serverSvc.CreateServer(ctx, &input.Body)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			return nil, huma.Error404NotFound("Not found")
@@ -503,14 +503,14 @@ func createServerHandler(ctx context.Context, input *CreateServerInput, registry
 	return &types.Response[models.ServerResponse]{
 		Body: attachServerDeploymentMeta(
 			ctx,
-			registry,
+			deploymentSvc,
 			[]models.ServerResponse{normalizeServerResponse(createdServer)},
 		)[0],
 	}, nil
 }
 
 // RegisterServersCreateEndpoint registers POST /servers (create or update; immediately visible).
-func RegisterServersCreateEndpoint(api huma.API, pathPrefix string, registry service.RegistryService) {
+func RegisterServersCreateEndpoint(api huma.API, pathPrefix string, serverSvc service.ServerService, deploymentSvc service.DeploymentService) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-server" + strings.ReplaceAll(pathPrefix, "/", "-"),
 		Method:      http.MethodPost,
@@ -519,6 +519,6 @@ func RegisterServersCreateEndpoint(api huma.API, pathPrefix string, registry ser
 		Description: "Create a new MCP server in the registry or update an existing one. Resources are immediately visible after creation.",
 		Tags:        []string{"servers"},
 	}, func(ctx context.Context, input *CreateServerInput) (*types.Response[models.ServerResponse], error) {
-		return createServerHandler(ctx, input, registry)
+		return createServerHandler(ctx, input, serverSvc, deploymentSvc)
 	})
 }

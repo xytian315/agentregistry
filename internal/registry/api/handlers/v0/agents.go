@@ -44,7 +44,7 @@ type AgentVersionsInput struct {
 }
 
 // RegisterAgentsEndpoints registers all agent-related endpoints with a custom path prefix.
-func RegisterAgentsEndpoints(api huma.API, pathPrefix string, registry service.RegistryService) {
+func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc service.AgentService, deploymentSvc service.DeploymentService) {
 	tags := []string{"agents"}
 	if strings.Contains(pathPrefix, "admin") {
 		tags = append(tags, "admin")
@@ -91,7 +91,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, registry service.R
 			}
 		}
 
-		agents, nextCursor, err := registry.ListAgents(ctx, filter, input.Cursor, input.Limit)
+		agents, nextCursor, err := agentSvc.ListAgents(ctx, filter, input.Cursor, input.Limit)
 		if err != nil {
 			if errors.Is(err, database.ErrInvalidInput) {
 				return nil, huma.Error400BadRequest(err.Error(), err)
@@ -109,7 +109,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, registry service.R
 		for i, a := range agents {
 			agentValues[i] = *a
 		}
-		agentValues = attachAgentDeploymentMeta(ctx, registry, agentValues)
+		agentValues = attachAgentDeploymentMeta(ctx, deploymentSvc, agentValues)
 		return &types.Response[agentmodels.AgentListResponse]{
 			Body: agentmodels.AgentListResponse{
 				Agents: agentValues,
@@ -141,9 +141,9 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, registry service.R
 
 		var agentResp *agentmodels.AgentResponse
 		if version == "latest" {
-			agentResp, err = registry.GetAgentByName(ctx, agentName)
+			agentResp, err = agentSvc.GetAgentByName(ctx, agentName)
 		} else {
-			agentResp, err = registry.GetAgentByNameAndVersion(ctx, agentName, version)
+			agentResp, err = agentSvc.GetAgentByNameAndVersion(ctx, agentName, version)
 		}
 		if err != nil {
 			if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
@@ -160,7 +160,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, registry service.R
 		return &types.Response[agentmodels.AgentResponse]{
 			Body: attachAgentDeploymentMeta(
 				ctx,
-				registry,
+				deploymentSvc,
 				[]agentmodels.AgentResponse{*agentResp},
 			)[0],
 		}, nil
@@ -183,7 +183,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, registry service.R
 			return nil, huma.Error400BadRequest("Invalid version encoding", err)
 		}
 
-		if err := registry.DeleteAgent(ctx, agentName, version); err != nil {
+		if err := agentSvc.DeleteAgent(ctx, agentName, version); err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Agent not found")
 			}
@@ -215,7 +215,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, registry service.R
 			return nil, huma.Error400BadRequest("Invalid agent name encoding", err)
 		}
 
-		agents, err := registry.GetAllVersionsByAgentName(ctx, agentName)
+		agents, err := agentSvc.GetAllVersionsByAgentName(ctx, agentName)
 		if err != nil {
 			if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Agent not found")
@@ -233,7 +233,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, registry service.R
 		for i, a := range agents {
 			agentValues[i] = *a
 		}
-		agentValues = attachAgentDeploymentMeta(ctx, registry, agentValues)
+		agentValues = attachAgentDeploymentMeta(ctx, deploymentSvc, agentValues)
 		return &types.Response[agentmodels.AgentListResponse]{
 			Body: agentmodels.AgentListResponse{
 				Agents: agentValues,
@@ -251,9 +251,9 @@ type CreateAgentInput struct {
 }
 
 // createAgentHandler is the shared handler logic for creating agents
-func createAgentHandler(ctx context.Context, input *CreateAgentInput, registry service.RegistryService) (*types.Response[agentmodels.AgentResponse], error) {
+func createAgentHandler(ctx context.Context, input *CreateAgentInput, agentSvc service.AgentService, deploymentSvc service.DeploymentService) (*types.Response[agentmodels.AgentResponse], error) {
 	// Create/update the agent (published defaults to false in the service layer)
-	createdAgent, err := registry.CreateAgent(ctx, &input.Body)
+	createdAgent, err := agentSvc.CreateAgent(ctx, &input.Body)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			return nil, huma.Error404NotFound("Not found")
@@ -270,14 +270,14 @@ func createAgentHandler(ctx context.Context, input *CreateAgentInput, registry s
 	return &types.Response[agentmodels.AgentResponse]{
 		Body: attachAgentDeploymentMeta(
 			ctx,
-			registry,
+			deploymentSvc,
 			[]agentmodels.AgentResponse{*createdAgent},
 		)[0],
 	}, nil
 }
 
 // RegisterAgentsCreateEndpoint registers POST /agents (create or update; immediately visible).
-func RegisterAgentsCreateEndpoint(api huma.API, pathPrefix string, registry service.RegistryService) {
+func RegisterAgentsCreateEndpoint(api huma.API, pathPrefix string, agentSvc service.AgentService, deploymentSvc service.DeploymentService) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-agent" + strings.ReplaceAll(pathPrefix, "/", "-"),
 		Method:      http.MethodPost,
@@ -286,6 +286,6 @@ func RegisterAgentsCreateEndpoint(api huma.API, pathPrefix string, registry serv
 		Description: "Create a new Agentic agent in the registry or update an existing one. Resources are immediately visible after creation.",
 		Tags:        []string{"agents"},
 	}, func(ctx context.Context, input *CreateAgentInput) (*types.Response[agentmodels.AgentResponse], error) {
-		return createAgentHandler(ctx, input, registry)
+		return createAgentHandler(ctx, input, agentSvc, deploymentSvc)
 	})
 }

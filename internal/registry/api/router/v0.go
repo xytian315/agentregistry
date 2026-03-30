@@ -44,9 +44,9 @@ func RegisterRoutes(
 	v0.RegisterHealthEndpoint(api, pathPrefix, cfg, metrics)
 	v0.RegisterPingEndpoint(api, pathPrefix)
 	v0.RegisterVersionEndpoint(api, pathPrefix, versionInfo)
-	v0.RegisterServersEndpoints(api, pathPrefix, registry)
-	v0.RegisterServersCreateEndpoint(api, pathPrefix, registry)
-	v0.RegisterEditEndpoints(api, pathPrefix, registry)
+	v0.RegisterServersEndpoints(api, pathPrefix, registry, registry)
+	v0.RegisterServersCreateEndpoint(api, pathPrefix, registry, registry)
+	v0.RegisterEditEndpoints(api, pathPrefix, registry, registry)
 	v0auth.RegisterAuthEndpoints(api, pathPrefix, cfg)
 	platformExt := v0.PlatformExtensions{}
 	if opts != nil {
@@ -55,8 +55,8 @@ func RegisterRoutes(
 	}
 	v0.RegisterProvidersEndpoints(api, pathPrefix, registry, platformExt)
 	v0.RegisterDeploymentsEndpoints(api, pathPrefix, registry, registry, platformExt)
-	v0.RegisterAgentsEndpoints(api, pathPrefix, registry)
-	v0.RegisterAgentsCreateEndpoint(api, pathPrefix, registry)
+	v0.RegisterAgentsEndpoints(api, pathPrefix, registry, registry)
+	v0.RegisterAgentsCreateEndpoint(api, pathPrefix, registry, registry)
 	v0.RegisterSkillsEndpoints(api, pathPrefix, registry)
 	v0.RegisterSkillsCreateEndpoint(api, pathPrefix, registry)
 	v0.RegisterPromptsEndpoints(api, pathPrefix, registry)

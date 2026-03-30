@@ -382,7 +382,7 @@ func TestEditServerEndpoint(t *testing.T) {
 			api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
 
 			// Register edit endpoints
-			v0.RegisterEditEndpoints(api, "/v0", registryService)
+			v0.RegisterEditEndpoints(api, "/v0", registryService, registryService)
 
 			// Create request body
 			requestBody, err := json.Marshal(tc.requestBody)
@@ -487,7 +487,7 @@ func TestEditServerEndpointEdgeCases(t *testing.T) {
 	// Create API
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterEditEndpoints(api, "/v0", registryService)
+	v0.RegisterEditEndpoints(api, "/v0", registryService, registryService)
 
 	t.Run("status transitions", func(t *testing.T) {
 		tests := []struct {
