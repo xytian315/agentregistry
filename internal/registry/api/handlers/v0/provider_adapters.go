@@ -12,7 +12,7 @@ import (
 
 type providerAdapterBase struct {
 	providerPlatform string
-	registry         service.RegistryService
+	registry         service.ProviderService
 }
 
 func (a *providerAdapterBase) Platform() string {
@@ -80,7 +80,7 @@ type kubernetesProviderAdapter struct {
 // kept explicit so platform-specific validation can diverge later if needed.
 
 // DefaultProviderPlatformAdapters returns OSS provider adapters for local and kubernetes.
-func DefaultProviderPlatformAdapters(registry service.RegistryService) map[string]registrytypes.ProviderPlatformAdapter {
+func DefaultProviderPlatformAdapters(registry service.ProviderService) map[string]registrytypes.ProviderPlatformAdapter {
 	return map[string]registrytypes.ProviderPlatformAdapter{
 		"local": &localProviderAdapter{
 			providerAdapterBase: providerAdapterBase{

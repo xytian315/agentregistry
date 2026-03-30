@@ -106,6 +106,34 @@ type SemanticSearchOptions struct {
 	HybridSubstring *string
 }
 
+// ProviderRepository defines provider persistence operations.
+type ProviderRepository interface {
+	// CreateProvider creates a new provider record.
+	CreateProvider(ctx context.Context, tx pgx.Tx, in *models.CreateProviderInput) (*models.Provider, error)
+	// ListProviders lists provider records, optionally filtered by platform.
+	ListProviders(ctx context.Context, tx pgx.Tx, platform *string) ([]*models.Provider, error)
+	// GetProviderByID returns a provider by ID.
+	GetProviderByID(ctx context.Context, tx pgx.Tx, providerID string) (*models.Provider, error)
+	// UpdateProvider updates mutable provider fields.
+	UpdateProvider(ctx context.Context, tx pgx.Tx, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
+	// DeleteProvider removes a provider by ID.
+	DeleteProvider(ctx context.Context, tx pgx.Tx, providerID string) error
+}
+
+// DeploymentRepository defines deployment persistence operations.
+type DeploymentRepository interface {
+	// CreateDeployment creates a new deployment record
+	CreateDeployment(ctx context.Context, tx pgx.Tx, deployment *models.Deployment) error
+	// GetDeployments retrieves all deployed servers
+	GetDeployments(ctx context.Context, tx pgx.Tx, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	// GetDeploymentByID retrieves a specific deployment by UUID.
+	GetDeploymentByID(ctx context.Context, tx pgx.Tx, id string) (*models.Deployment, error)
+	// UpdateDeploymentState applies a partial state patch to a deployment by ID.
+	UpdateDeploymentState(ctx context.Context, tx pgx.Tx, id string, patch *models.DeploymentStatePatch) error
+	// RemoveDeploymentByID removes a deployment by ID.
+	RemoveDeploymentByID(ctx context.Context, tx pgx.Tx, id string) error
+}
+
 // Database defines the interface for database operations
 type Database interface {
 	// DeleteServer permanently removes a server version from the database
@@ -228,28 +256,8 @@ type Database interface {
 	// DeletePrompt permanently removes a prompt version from the database
 	DeletePrompt(ctx context.Context, tx pgx.Tx, promptName, version string) error
 
-	// Deployments API
-	// CreateProvider creates a new provider record.
-	CreateProvider(ctx context.Context, tx pgx.Tx, in *models.CreateProviderInput) (*models.Provider, error)
-	// ListProviders lists provider records, optionally filtered by platform.
-	ListProviders(ctx context.Context, tx pgx.Tx, platform *string) ([]*models.Provider, error)
-	// GetProviderByID returns a provider by ID.
-	GetProviderByID(ctx context.Context, tx pgx.Tx, providerID string) (*models.Provider, error)
-	// UpdateProvider updates mutable provider fields.
-	UpdateProvider(ctx context.Context, tx pgx.Tx, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
-	// DeleteProvider removes a provider by ID.
-	DeleteProvider(ctx context.Context, tx pgx.Tx, providerID string) error
-
-	// CreateDeployment creates a new deployment record
-	CreateDeployment(ctx context.Context, tx pgx.Tx, deployment *models.Deployment) error
-	// GetDeployments retrieves all deployed servers
-	GetDeployments(ctx context.Context, tx pgx.Tx, filter *models.DeploymentFilter) ([]*models.Deployment, error)
-	// GetDeploymentByID retrieves a specific deployment by UUID.
-	GetDeploymentByID(ctx context.Context, tx pgx.Tx, id string) (*models.Deployment, error)
-	// UpdateDeploymentState applies a partial state patch to a deployment by ID.
-	UpdateDeploymentState(ctx context.Context, tx pgx.Tx, id string, patch *models.DeploymentStatePatch) error
-	// RemoveDeploymentByID removes a deployment by ID.
-	RemoveDeploymentByID(ctx context.Context, tx pgx.Tx, id string) error
+	ProviderRepository
+	DeploymentRepository
 }
 
 // InTransactionT is a generic helper that wraps InTransaction for functions returning a value

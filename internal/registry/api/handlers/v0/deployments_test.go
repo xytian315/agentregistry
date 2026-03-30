@@ -73,7 +73,7 @@ func TestCreateDeployment_PassesEnvAndProviderConfigSeparately(t *testing.T) {
 
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -119,7 +119,7 @@ func TestCreateDeployment_MissingProviderIDReturnsBadRequest(t *testing.T) {
 
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms:   v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{"local": &fakeDeploymentAdapter{}},
 	})
@@ -179,7 +179,7 @@ func TestDeleteDeployment_DiscoveredReturnsConflict(t *testing.T) {
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
 	adapter := &fakeDeploymentAdapter{undeployErr: database.ErrInvalidInput}
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -223,7 +223,7 @@ func TestCreateDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -276,7 +276,7 @@ func TestCreateDeployment_InvalidInputFromAdapterReturnsBadRequest(t *testing.T)
 
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -322,7 +322,7 @@ func TestCreateDeployment_AllowsMultipleDeploymentsForSameArtifact(t *testing.T)
 
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": &fakeDeploymentAdapter{},
@@ -372,7 +372,7 @@ func TestCreateDeployment_NotFoundIncludesResourceName(t *testing.T) {
 	adapter := &fakeDeploymentAdapter{}
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("test", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -420,7 +420,7 @@ func TestDeleteDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -454,7 +454,7 @@ func TestDeleteDeployment_UnsupportedPlatformReturnsBadRequest(t *testing.T) {
 
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": &fakeDeploymentAdapter{},
@@ -488,7 +488,7 @@ func TestGetDeploymentLogs_UsesAdapterWhenRegistered(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -528,7 +528,7 @@ func TestGetDeploymentLogs_NotFoundFromAdapterReturnsNotFound(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -562,7 +562,7 @@ func TestGetDeploymentLogs_NotSupportedFromAdapterReturnsNotImplemented(t *testi
 	}
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -596,7 +596,7 @@ func TestCancelDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -630,7 +630,7 @@ func TestCancelDeployment_InvalidInputFromAdapterReturnsBadRequest(t *testing.T)
 	}
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
@@ -664,7 +664,7 @@ func TestCancelDeployment_NotSupportedFromAdapterReturnsNotImplemented(t *testin
 	}
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, v0.PlatformExtensions{
+	v0.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0.PlatformExtensions{
 		ProviderPlatforms: v0.DefaultProviderPlatformAdapters(reg),
 		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,

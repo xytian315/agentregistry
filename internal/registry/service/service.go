@@ -9,6 +9,42 @@ import (
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 )
 
+// ProviderService defines provider lifecycle operations.
+type ProviderService interface {
+	// ListProviders retrieves deployment target providers, optionally filtered by provider platform type.
+	ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error)
+	// GetProviderByID retrieves a provider by ID.
+	GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error)
+	// CreateProvider creates a deployment target provider.
+	CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error)
+	// UpdateProvider updates mutable fields for a provider.
+	UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
+	// DeleteProvider deletes a provider by ID.
+	DeleteProvider(ctx context.Context, providerID string) error
+}
+
+// DeploymentService defines deployment lifecycle operations.
+type DeploymentService interface {
+	// GetDeployments retrieves all deployed resources (MCP servers, agents)
+	GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	// GetDeploymentByID retrieves a specific deployment by UUID.
+	GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error)
+	// DeployServer deploys an MCP server with configuration
+	DeployServer(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	// DeployAgent deploys an agent with configuration (to be implemented)
+	DeployAgent(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	// RemoveDeploymentByID removes a deployment by UUID.
+	RemoveDeploymentByID(ctx context.Context, id string) error
+	// CreateDeployment dispatches deployment creation via provider-resolved platform adapter.
+	CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
+	// UndeployDeployment dispatches undeploy via provider-resolved platform adapter.
+	UndeployDeployment(ctx context.Context, deployment *models.Deployment) error
+	// GetDeploymentLogs dispatches deployment log retrieval via provider-resolved platform adapter.
+	GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error)
+	// CancelDeployment dispatches deployment cancellation via provider-resolved platform adapter.
+	CancelDeployment(ctx context.Context, deployment *models.Deployment) error
+}
+
 // RegistryService defines the interface for registry operations
 type RegistryService interface {
 	// ListServers retrieve all servers with optional filtering
@@ -85,34 +121,6 @@ type RegistryService interface {
 	// DeletePrompt permanently removes a prompt version from the registry
 	DeletePrompt(ctx context.Context, promptName, version string) error
 
-	// Deployments APIs
-	// ListProviders retrieves deployment target providers, optionally filtered by provider platform type.
-	ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error)
-	// GetProviderByID retrieves a provider by ID.
-	GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error)
-	// CreateProvider creates a deployment target provider.
-	CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error)
-	// UpdateProvider updates mutable fields for a provider.
-	UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
-	// DeleteProvider deletes a provider by ID.
-	DeleteProvider(ctx context.Context, providerID string) error
-
-	// GetDeployments retrieves all deployed resources (MCP servers, agents)
-	GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
-	// GetDeploymentByID retrieves a specific deployment by UUID.
-	GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error)
-	// DeployServer deploys an MCP server with configuration
-	DeployServer(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
-	// DeployAgent deploys an agent with configuration (to be implemented)
-	DeployAgent(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
-	// RemoveDeploymentByID removes a deployment by UUID.
-	RemoveDeploymentByID(ctx context.Context, id string) error
-	// CreateDeployment dispatches deployment creation via provider-resolved platform adapter.
-	CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
-	// UndeployDeployment dispatches undeploy via provider-resolved platform adapter.
-	UndeployDeployment(ctx context.Context, deployment *models.Deployment) error
-	// GetDeploymentLogs dispatches deployment log retrieval via provider-resolved platform adapter.
-	GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error)
-	// CancelDeployment dispatches deployment cancellation via provider-resolved platform adapter.
-	CancelDeployment(ctx context.Context, deployment *models.Deployment) error
+	ProviderService
+	DeploymentService
 }

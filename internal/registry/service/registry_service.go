@@ -60,6 +60,8 @@ func IsUnsupportedDeploymentPlatformError(err error) bool {
 // registryServiceImpl implements the RegistryService interface using our Database.
 type registryServiceImpl struct {
 	db                 database.Database
+	providerRepo       database.ProviderRepository
+	deploymentRepo     database.DeploymentRepository
 	cfg                *config.Config
 	embeddingsProvider embeddings.Provider
 	deploymentAdapters map[string]registrytypes.DeploymentPlatformAdapter
@@ -79,6 +81,8 @@ func NewRegistryService(
 ) RegistryService {
 	return &registryServiceImpl{
 		db:                 db,
+		providerRepo:       db,
+		deploymentRepo:     db,
 		cfg:                cfg,
 		embeddingsProvider: embeddingProvider,
 		logger:             slog.Default().With("component", "registry"),
@@ -90,6 +94,20 @@ func (s *registryServiceImpl) SetPlatformAdapters(
 	deploymentPlatforms map[string]registrytypes.DeploymentPlatformAdapter,
 ) {
 	s.deploymentAdapters = deploymentPlatforms
+}
+
+func (s *registryServiceImpl) providerStoreDB() database.ProviderRepository {
+	if s.providerRepo != nil {
+		return s.providerRepo
+	}
+	return s.db
+}
+
+func (s *registryServiceImpl) deploymentStoreDB() database.DeploymentRepository {
+	if s.deploymentRepo != nil {
+		return s.deploymentRepo
+	}
+	return s.db
 }
 
 func (s *registryServiceImpl) resolveDeploymentAdapter(platform string) (registrytypes.DeploymentPlatformAdapter, error) {
@@ -706,27 +724,27 @@ func (s *registryServiceImpl) GetAgentEmbeddingMetadata(ctx context.Context, age
 
 // ListProviders lists providers, optionally filtered by platform.
 func (s *registryServiceImpl) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
-	return s.db.ListProviders(ctx, nil, platform)
+	return s.providerStoreDB().ListProviders(ctx, nil, platform)
 }
 
 // GetProviderByID gets a provider by ID.
 func (s *registryServiceImpl) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
-	return s.db.GetProviderByID(ctx, nil, providerID)
+	return s.providerStoreDB().GetProviderByID(ctx, nil, providerID)
 }
 
 // CreateProvider creates a provider.
 func (s *registryServiceImpl) CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
-	return s.db.CreateProvider(ctx, nil, in)
+	return s.providerStoreDB().CreateProvider(ctx, nil, in)
 }
 
 // UpdateProvider updates mutable provider fields.
 func (s *registryServiceImpl) UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error) {
-	return s.db.UpdateProvider(ctx, nil, providerID, in)
+	return s.providerStoreDB().UpdateProvider(ctx, nil, providerID, in)
 }
 
 // DeleteProvider removes a provider by ID.
 func (s *registryServiceImpl) DeleteProvider(ctx context.Context, providerID string) error {
-	return s.db.DeleteProvider(ctx, nil, providerID)
+	return s.providerStoreDB().DeleteProvider(ctx, nil, providerID)
 }
 
 func shouldIncludeDiscoveredDeployments(filter *models.DeploymentFilter) bool {
@@ -806,7 +824,7 @@ func (s *registryServiceImpl) appendDiscoveredDeployments(ctx context.Context, d
 		}
 	}
 
-	providers, err := s.db.ListProviders(ctx, nil, platformFilter)
+	providers, err := s.providerStoreDB().ListProviders(ctx, nil, platformFilter)
 	if err != nil {
 		log.Printf("Warning: Failed to list providers for discovery: %v", err)
 		return deployments
@@ -866,7 +884,7 @@ func (s *registryServiceImpl) appendDiscoveredDeployments(ctx context.Context, d
 // GetDeployments retrieves all deployed servers with optional filtering
 func (s *registryServiceImpl) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 	// Get managed deployments from DB
-	dbDeployments, err := s.db.GetDeployments(ctx, nil, filter)
+	dbDeployments, err := s.deploymentStoreDB().GetDeployments(ctx, nil, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployments from DB: %w", err)
 	}
@@ -883,7 +901,7 @@ func (s *registryServiceImpl) GetDeployments(ctx context.Context, filter *models
 
 // GetDeploymentByID retrieves a specific deployment by UUID.
 func (s *registryServiceImpl) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
-	deployment, err := s.db.GetDeploymentByID(ctx, nil, id)
+	deployment, err := s.deploymentStoreDB().GetDeploymentByID(ctx, nil, id)
 	if err == nil {
 		return deployment, nil
 	}
@@ -916,7 +934,7 @@ func (s *registryServiceImpl) resolveProviderByID(ctx context.Context, providerI
 	if strings.TrimSpace(providerID) == "" {
 		return nil, fmt.Errorf("%w: provider id is required", database.ErrInvalidInput)
 	}
-	return s.db.GetProviderByID(ctx, nil, providerID)
+	return s.providerStoreDB().GetProviderByID(ctx, nil, providerID)
 }
 
 func (s *registryServiceImpl) resolveDeploymentAdapterByProviderID(ctx context.Context, providerID string) (registrytypes.DeploymentPlatformAdapter, error) {
@@ -952,7 +970,7 @@ func (s *registryServiceImpl) findDeploymentByIdentity(ctx context.Context, reso
 		ResourceType: &artifactType,
 		ResourceName: &resourceName,
 	}
-	deployments, err := s.db.GetDeployments(ctx, nil, filter)
+	deployments, err := s.deploymentStoreDB().GetDeployments(ctx, nil, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -991,7 +1009,7 @@ func (s *registryServiceImpl) cleanupExistingDeployment(ctx context.Context, res
 		log.Printf("Warning: failed stale cleanup for deployment %s on platform %s: %v", existing.ID, cleanupPlatform, err)
 	}
 
-	if err := s.db.RemoveDeploymentByID(ctx, nil, existing.ID); err != nil && !errors.Is(err, database.ErrNotFound) {
+	if err := s.deploymentStoreDB().RemoveDeploymentByID(ctx, nil, existing.ID); err != nil && !errors.Is(err, database.ErrNotFound) {
 		return fmt.Errorf("removing stale deployment record: %w", err)
 	}
 
@@ -1067,7 +1085,7 @@ func (s *registryServiceImpl) removeDeploymentRecord(ctx context.Context, deploy
 		return database.ErrInvalidInput
 	}
 
-	if err := s.db.RemoveDeploymentByID(ctx, nil, deployment.ID); err != nil {
+	if err := s.deploymentStoreDB().RemoveDeploymentByID(ctx, nil, deployment.ID); err != nil {
 		return err
 	}
 
@@ -1076,7 +1094,7 @@ func (s *registryServiceImpl) removeDeploymentRecord(ctx context.Context, deploy
 
 // RemoveDeploymentByID removes a deployment by UUID.
 func (s *registryServiceImpl) RemoveDeploymentByID(ctx context.Context, id string) error {
-	deployment, err := s.db.GetDeploymentByID(ctx, nil, id)
+	deployment, err := s.deploymentStoreDB().GetDeploymentByID(ctx, nil, id)
 	if err != nil {
 		return err
 	}
@@ -1136,7 +1154,7 @@ func (s *registryServiceImpl) CreateDeployment(ctx context.Context, req *models.
 		return nil, err
 	}
 
-	updated, err := s.db.GetDeploymentByID(ctx, nil, created.ID)
+	updated, err := s.deploymentStoreDB().GetDeploymentByID(ctx, nil, created.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -1206,11 +1224,11 @@ func (s *registryServiceImpl) createManagedDeploymentRecord(ctx context.Context,
 		return nil, fmt.Errorf("%w: invalid resource type %q", database.ErrInvalidInput, deployment.ResourceType)
 	}
 
-	if err := s.db.CreateDeployment(ctx, nil, deployment); err != nil {
+	if err := s.deploymentStoreDB().CreateDeployment(ctx, nil, deployment); err != nil {
 		return nil, err
 	}
 
-	created, err := s.db.GetDeploymentByID(ctx, nil, deployment.ID)
+	created, err := s.deploymentStoreDB().GetDeploymentByID(ctx, nil, deployment.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -1243,7 +1261,7 @@ func (s *registryServiceImpl) applyDeploymentActionResult(ctx context.Context, d
 		}
 	}
 
-	return s.db.UpdateDeploymentState(auth.WithSystemContext(ctx), nil, deploymentID, patch)
+	return s.deploymentStoreDB().UpdateDeploymentState(auth.WithSystemContext(ctx), nil, deploymentID, patch)
 }
 
 func (s *registryServiceImpl) applyFailedDeploymentAction(
@@ -1277,7 +1295,7 @@ func (s *registryServiceImpl) applyFailedDeploymentAction(
 			patch.ProviderMetadata = &meta
 		}
 	}
-	return s.db.UpdateDeploymentState(auth.WithSystemContext(ctx), nil, deploymentID, patch)
+	return s.deploymentStoreDB().UpdateDeploymentState(auth.WithSystemContext(ctx), nil, deploymentID, patch)
 }
 
 // GetDeploymentLogs dispatches logs retrieval to the platform adapter.

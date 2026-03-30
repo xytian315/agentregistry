@@ -87,7 +87,7 @@ func removeDeploymentHTTPError(err error) error {
 }
 
 // RegisterDeploymentsEndpoints registers all deployment-related endpoints
-func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry service.RegistryService, extensions PlatformExtensions) {
+func RegisterDeploymentsEndpoints(api huma.API, basePath string, providerSvc service.ProviderService, deploymentSvc service.DeploymentService, extensions PlatformExtensions) {
 	// List all deployments
 	huma.Register(api, huma.Operation{
 		OperationID: "list-deployments",
@@ -123,7 +123,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 			filter.ResourceName = &n
 		}
 
-		deployments, err := registry.GetDeployments(ctx, filter)
+		deployments, err := deploymentSvc.GetDeployments(ctx, filter)
 		if err != nil {
 			if errors.Is(err, auth.ErrUnauthenticated) {
 				return nil, huma.Error401Unauthorized("Authentication required")
@@ -152,7 +152,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 		Description: "Retrieve details for a specific deployment by ID",
 		Tags:        []string{"deployments"},
 	}, func(ctx context.Context, input *DeploymentByIDInput) (*DeploymentResponse, error) {
-		deployment, err := registry.GetDeploymentByID(ctx, input.ID)
+		deployment, err := deploymentSvc.GetDeploymentByID(ctx, input.ID)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Deployment not found")
@@ -195,7 +195,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 		if providerID == "" {
 			return nil, huma.Error400BadRequest("providerId is required")
 		}
-		_, err := getProviderByID(ctx, registry, extensions, providerID, "")
+		_, err := getProviderByID(ctx, providerSvc, extensions, providerID, "")
 		if err != nil {
 			return nil, err
 		}
@@ -211,7 +211,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 			PreferRemote:   input.Body.PreferRemote,
 		}
 
-		deployment, err := registry.CreateDeployment(ctx, deploymentReq)
+		deployment, err := deploymentSvc.CreateDeployment(ctx, deploymentReq)
 		if err != nil {
 			return nil, createDeploymentHTTPError(err)
 		}
@@ -228,7 +228,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 		Description: "Remove a deployment by ID",
 		Tags:        []string{"deployments"},
 	}, func(ctx context.Context, input *DeploymentByIDInput) (*struct{}, error) {
-		deployment, err := registry.GetDeploymentByID(ctx, input.ID)
+		deployment, err := deploymentSvc.GetDeploymentByID(ctx, input.ID)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Deployment not found")
@@ -247,7 +247,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 			return nil, huma.Error409Conflict("Discovered deployments cannot be deleted directly")
 		}
 
-		err = registry.UndeployDeployment(ctx, deployment)
+		err = deploymentSvc.UndeployDeployment(ctx, deployment)
 		if err != nil {
 			return nil, removeDeploymentHTTPError(err)
 		}
@@ -264,7 +264,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 		Description: "Get logs for async deployments when supported by the provider",
 		Tags:        []string{"deployments"},
 	}, func(ctx context.Context, input *DeploymentByIDInput) (*DeploymentLogsResponse, error) {
-		deployment, err := registry.GetDeploymentByID(ctx, input.ID)
+		deployment, err := deploymentSvc.GetDeploymentByID(ctx, input.ID)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Deployment not found")
@@ -278,7 +278,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 			return nil, huma.Error500InternalServerError("Failed to retrieve deployment", err)
 		}
 
-		logs, err := registry.GetDeploymentLogs(ctx, deployment)
+		logs, err := deploymentSvc.GetDeploymentLogs(ctx, deployment)
 		if err != nil {
 			if errors.Is(err, database.ErrInvalidInput) {
 				return nil, huma.Error400BadRequest("Invalid deployment logs request")
@@ -307,7 +307,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 		Description: "Cancel a deployment when supported by the provider",
 		Tags:        []string{"deployments"},
 	}, func(ctx context.Context, input *DeploymentByIDInput) (*struct{}, error) {
-		deployment, err := registry.GetDeploymentByID(ctx, input.ID)
+		deployment, err := deploymentSvc.GetDeploymentByID(ctx, input.ID)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Deployment not found")
@@ -321,7 +321,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, registry servic
 			return nil, huma.Error500InternalServerError("Failed to retrieve deployment", err)
 		}
 
-		if err := registry.CancelDeployment(ctx, deployment); err != nil {
+		if err := deploymentSvc.CancelDeployment(ctx, deployment); err != nil {
 			if errors.Is(err, database.ErrInvalidInput) {
 				return nil, huma.Error400BadRequest("Invalid deployment cancel request")
 			}

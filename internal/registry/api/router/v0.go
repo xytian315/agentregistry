@@ -54,7 +54,7 @@ func RegisterRoutes(
 		platformExt.DeploymentPlatforms = opts.DeploymentPlatforms
 	}
 	v0.RegisterProvidersEndpoints(api, pathPrefix, registry, platformExt)
-	v0.RegisterDeploymentsEndpoints(api, pathPrefix, registry, platformExt)
+	v0.RegisterDeploymentsEndpoints(api, pathPrefix, registry, registry, platformExt)
 	v0.RegisterAgentsEndpoints(api, pathPrefix, registry)
 	v0.RegisterAgentsCreateEndpoint(api, pathPrefix, registry)
 	v0.RegisterSkillsEndpoints(api, pathPrefix, registry)

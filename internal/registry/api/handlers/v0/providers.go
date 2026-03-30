@@ -113,7 +113,7 @@ func listProvidersForPlatform(ctx context.Context, extensions PlatformExtensions
 	return providers, nil
 }
 
-func getProviderByID(ctx context.Context, registry service.RegistryService, extensions PlatformExtensions, providerID, platformHint string) (*models.Provider, error) {
+func getProviderByID(ctx context.Context, providerSvc service.ProviderService, extensions PlatformExtensions, providerID, platformHint string) (*models.Provider, error) {
 	hintedProvider, err := getProviderByHint(ctx, extensions, providerID, platformHint)
 	if hintedProvider != nil || err != nil {
 		return hintedProvider, err
@@ -134,7 +134,7 @@ func getProviderByID(ctx context.Context, registry service.RegistryService, exte
 	}
 
 	// Determine whether the provider exists but has an unsupported platform.
-	provider, err := registry.GetProviderByID(ctx, providerID)
+	provider, err := providerSvc.GetProviderByID(ctx, providerID)
 	if err == nil && provider != nil {
 		return nil, unsupportedProviderPlatformError(provider.Platform)
 	}
@@ -146,7 +146,7 @@ func getProviderByID(ctx context.Context, registry service.RegistryService, exte
 }
 
 // RegisterProvidersEndpoints registers provider CRUD endpoints.
-func RegisterProvidersEndpoints(api huma.API, basePath string, registry service.RegistryService, extensions PlatformExtensions) {
+func RegisterProvidersEndpoints(api huma.API, basePath string, providerSvc service.ProviderService, extensions PlatformExtensions) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-providers",
 		Method:      http.MethodGet,
@@ -227,7 +227,7 @@ func RegisterProvidersEndpoints(api huma.API, basePath string, registry service.
 		Description: "Get a provider by ID.",
 		Tags:        []string{"providers"},
 	}, func(ctx context.Context, input *ProviderByIDInput) (*ProviderResponse, error) {
-		provider, err := getProviderByID(ctx, registry, extensions, input.ProviderID, input.Platform)
+		provider, err := getProviderByID(ctx, providerSvc, extensions, input.ProviderID, input.Platform)
 		if err != nil {
 			return nil, err
 		}
@@ -242,7 +242,7 @@ func RegisterProvidersEndpoints(api huma.API, basePath string, registry service.
 		Description: "Update mutable fields of a provider by ID.",
 		Tags:        []string{"providers"},
 	}, func(ctx context.Context, input *UpdateProviderRequest) (*ProviderResponse, error) {
-		provider, err := getProviderByID(ctx, registry, extensions, input.ProviderID, input.Platform)
+		provider, err := getProviderByID(ctx, providerSvc, extensions, input.ProviderID, input.Platform)
 		if err != nil {
 			return nil, err
 		}
@@ -270,7 +270,7 @@ func RegisterProvidersEndpoints(api huma.API, basePath string, registry service.
 		Description: "Delete a provider by ID.",
 		Tags:        []string{"providers"},
 	}, func(ctx context.Context, input *ProviderByIDInput) (*struct{}, error) {
-		provider, err := getProviderByID(ctx, registry, extensions, input.ProviderID, input.Platform)
+		provider, err := getProviderByID(ctx, providerSvc, extensions, input.ProviderID, input.Platform)
 		if err != nil {
 			return nil, err
 		}
