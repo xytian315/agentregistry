@@ -15,6 +15,84 @@ import (
 	"github.com/modelcontextprotocol/registry/pkg/model"
 )
 
+type agentServiceImpl struct {
+	*registryServiceImpl
+}
+
+var _ AgentService = (*agentServiceImpl)(nil)
+
+func (s *registryServiceImpl) agentService() *agentServiceImpl {
+	return &agentServiceImpl{registryServiceImpl: s}
+}
+
+func (s *agentServiceImpl) readStores() storeBundle {
+	return s.registryServiceImpl.readStores()
+}
+
+func (s *agentServiceImpl) inTransaction(ctx context.Context, fn func(context.Context, storeBundle) error) error {
+	return s.registryServiceImpl.inTransaction(ctx, fn)
+}
+
+func (s *agentServiceImpl) ensureSemanticEmbedding(ctx context.Context, opts *database.SemanticSearchOptions) error {
+	return s.registryServiceImpl.ensureSemanticEmbedding(ctx, opts)
+}
+
+func (s *agentServiceImpl) shouldGenerateEmbeddingsOnPublish() bool {
+	return s.registryServiceImpl.shouldGenerateEmbeddingsOnPublish()
+}
+
+func (s *agentServiceImpl) GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error) {
+	return s.registryServiceImpl.skillService().GetSkillByNameAndVersion(ctx, skillName, version)
+}
+
+func (s *agentServiceImpl) GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error) {
+	return s.registryServiceImpl.promptService().GetPromptByName(ctx, promptName)
+}
+
+func (s *agentServiceImpl) GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error) {
+	return s.registryServiceImpl.promptService().GetPromptByNameAndVersion(ctx, promptName, version)
+}
+
+func (s *registryServiceImpl) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	return s.agentService().ListAgents(ctx, filter, cursor, limit)
+}
+
+func (s *registryServiceImpl) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.agentService().GetAgentByName(ctx, agentName)
+}
+
+func (s *registryServiceImpl) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	return s.agentService().GetAgentByNameAndVersion(ctx, agentName, version)
+}
+
+func (s *registryServiceImpl) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+	return s.agentService().GetAllVersionsByAgentName(ctx, agentName)
+}
+
+func (s *registryServiceImpl) CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+	return s.agentService().CreateAgent(ctx, req)
+}
+
+func (s *registryServiceImpl) ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]api.AgentSkillRef, error) {
+	return s.agentService().ResolveAgentManifestSkills(ctx, manifest)
+}
+
+func (s *registryServiceImpl) ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]api.ResolvedPrompt, error) {
+	return s.agentService().ResolveAgentManifestPrompts(ctx, manifest)
+}
+
+func (s *registryServiceImpl) DeleteAgent(ctx context.Context, agentName, version string) error {
+	return s.agentService().DeleteAgent(ctx, agentName, version)
+}
+
+func (s *registryServiceImpl) UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
+	return s.agentService().UpsertAgentEmbedding(ctx, agentName, version, embedding)
+}
+
+func (s *registryServiceImpl) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	return s.agentService().GetAgentEmbeddingMetadata(ctx, agentName, version)
+}
+
 // AgentService defines agent catalog and mutation operations.
 type AgentService interface {
 	// ListAgents retrieve all agents with optional filtering

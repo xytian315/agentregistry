@@ -16,6 +16,76 @@ import (
 	registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
 )
 
+type deploymentServiceImpl struct {
+	*registryServiceImpl
+}
+
+var _ DeploymentService = (*deploymentServiceImpl)(nil)
+
+func (s *registryServiceImpl) deploymentService() *deploymentServiceImpl {
+	return &deploymentServiceImpl{registryServiceImpl: s}
+}
+
+func (s *deploymentServiceImpl) readStores() storeBundle {
+	return s.registryServiceImpl.readStores()
+}
+
+func (s *deploymentServiceImpl) resolveDeploymentAdapter(platform string) (registrytypes.DeploymentPlatformAdapter, error) {
+	return s.registryServiceImpl.resolveDeploymentAdapter(platform)
+}
+
+func (s *registryServiceImpl) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	return s.deploymentService().GetDeployments(ctx, filter)
+}
+
+func (s *registryServiceImpl) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+	return s.deploymentService().GetDeploymentByID(ctx, id)
+}
+
+func (s *registryServiceImpl) DeployServer(ctx context.Context, serverName, version string, env map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	return s.deploymentService().DeployServer(ctx, serverName, version, env, preferRemote, providerID)
+}
+
+func (s *registryServiceImpl) DeployAgent(ctx context.Context, agentName, version string, env map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
+	return s.deploymentService().DeployAgent(ctx, agentName, version, env, preferRemote, providerID)
+}
+
+func (s *registryServiceImpl) RemoveDeploymentByID(ctx context.Context, id string) error {
+	return s.deploymentService().RemoveDeploymentByID(ctx, id)
+}
+
+func (s *registryServiceImpl) CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
+	return s.deploymentService().CreateDeployment(ctx, req)
+}
+
+func (s *registryServiceImpl) UndeployDeployment(ctx context.Context, deployment *models.Deployment) error {
+	return s.deploymentService().UndeployDeployment(ctx, deployment)
+}
+
+func (s *registryServiceImpl) GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
+	return s.deploymentService().GetDeploymentLogs(ctx, deployment)
+}
+
+func (s *registryServiceImpl) CancelDeployment(ctx context.Context, deployment *models.Deployment) error {
+	return s.deploymentService().CancelDeployment(ctx, deployment)
+}
+
+func (s *registryServiceImpl) cleanupExistingDeployment(ctx context.Context, resourceName, version, resourceType string) error {
+	return s.deploymentService().cleanupExistingDeployment(ctx, resourceName, version, resourceType)
+}
+
+func (s *registryServiceImpl) createManagedDeploymentRecord(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
+	return s.deploymentService().createManagedDeploymentRecord(ctx, req)
+}
+
+func (s *registryServiceImpl) applyDeploymentActionResult(ctx context.Context, deploymentID string, result *models.DeploymentActionResult) error {
+	return s.deploymentService().applyDeploymentActionResult(ctx, deploymentID, result)
+}
+
+func (s *registryServiceImpl) applyFailedDeploymentAction(ctx context.Context, deploymentID string, deployErr error, result *models.DeploymentActionResult) error {
+	return s.deploymentService().applyFailedDeploymentAction(ctx, deploymentID, deployErr, result)
+}
+
 // DeploymentService defines deployment lifecycle operations.
 type DeploymentService interface {
 	// GetDeployments retrieves all deployed resources (MCP servers, agents)

@@ -11,6 +11,48 @@ import (
 	"github.com/modelcontextprotocol/registry/pkg/model"
 )
 
+type promptServiceImpl struct {
+	*registryServiceImpl
+}
+
+var _ PromptService = (*promptServiceImpl)(nil)
+
+func (s *registryServiceImpl) promptService() *promptServiceImpl {
+	return &promptServiceImpl{registryServiceImpl: s}
+}
+
+func (s *promptServiceImpl) readStores() storeBundle {
+	return s.registryServiceImpl.readStores()
+}
+
+func (s *promptServiceImpl) inTransaction(ctx context.Context, fn func(context.Context, storeBundle) error) error {
+	return s.registryServiceImpl.inTransaction(ctx, fn)
+}
+
+func (s *registryServiceImpl) ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
+	return s.promptService().ListPrompts(ctx, filter, cursor, limit)
+}
+
+func (s *registryServiceImpl) GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error) {
+	return s.promptService().GetPromptByName(ctx, promptName)
+}
+
+func (s *registryServiceImpl) GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error) {
+	return s.promptService().GetPromptByNameAndVersion(ctx, promptName, version)
+}
+
+func (s *registryServiceImpl) GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*models.PromptResponse, error) {
+	return s.promptService().GetAllVersionsByPromptName(ctx, promptName)
+}
+
+func (s *registryServiceImpl) CreatePrompt(ctx context.Context, req *models.PromptJSON) (*models.PromptResponse, error) {
+	return s.promptService().CreatePrompt(ctx, req)
+}
+
+func (s *registryServiceImpl) DeletePrompt(ctx context.Context, promptName, version string) error {
+	return s.promptService().DeletePrompt(ctx, promptName, version)
+}
+
 // PromptService defines prompt catalog and mutation operations.
 type PromptService interface {
 	// ListPrompts retrieve all prompts with optional filtering

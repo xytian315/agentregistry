@@ -11,6 +11,48 @@ import (
 	"github.com/modelcontextprotocol/registry/pkg/model"
 )
 
+type skillServiceImpl struct {
+	*registryServiceImpl
+}
+
+var _ SkillService = (*skillServiceImpl)(nil)
+
+func (s *registryServiceImpl) skillService() *skillServiceImpl {
+	return &skillServiceImpl{registryServiceImpl: s}
+}
+
+func (s *skillServiceImpl) readStores() storeBundle {
+	return s.registryServiceImpl.readStores()
+}
+
+func (s *skillServiceImpl) inTransaction(ctx context.Context, fn func(context.Context, storeBundle) error) error {
+	return s.registryServiceImpl.inTransaction(ctx, fn)
+}
+
+func (s *registryServiceImpl) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+	return s.skillService().ListSkills(ctx, filter, cursor, limit)
+}
+
+func (s *registryServiceImpl) GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error) {
+	return s.skillService().GetSkillByName(ctx, skillName)
+}
+
+func (s *registryServiceImpl) GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error) {
+	return s.skillService().GetSkillByNameAndVersion(ctx, skillName, version)
+}
+
+func (s *registryServiceImpl) GetAllVersionsBySkillName(ctx context.Context, skillName string) ([]*models.SkillResponse, error) {
+	return s.skillService().GetAllVersionsBySkillName(ctx, skillName)
+}
+
+func (s *registryServiceImpl) CreateSkill(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error) {
+	return s.skillService().CreateSkill(ctx, req)
+}
+
+func (s *registryServiceImpl) DeleteSkill(ctx context.Context, skillName, version string) error {
+	return s.skillService().DeleteSkill(ctx, skillName, version)
+}
+
 // SkillService defines skill catalog and mutation operations.
 type SkillService interface {
 	// ListSkills retrieve all skills with optional filtering

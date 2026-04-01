@@ -62,6 +62,8 @@ type registryServiceImpl struct {
 	logger             *slog.Logger
 }
 
+var _ RegistryService = (*registryServiceImpl)(nil)
+
 // DeploymentPlatformStaleCleaner is an optional adapter hook for stale deployment replacement.
 type DeploymentPlatformStaleCleaner interface {
 	CleanupStale(ctx context.Context, deployment *models.Deployment) error

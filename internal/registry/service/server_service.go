@@ -14,6 +14,84 @@ import (
 	"github.com/modelcontextprotocol/registry/pkg/model"
 )
 
+type serverServiceImpl struct {
+	*registryServiceImpl
+}
+
+var _ ServerService = (*serverServiceImpl)(nil)
+
+func (s *registryServiceImpl) serverService() *serverServiceImpl {
+	return &serverServiceImpl{registryServiceImpl: s}
+}
+
+func (s *serverServiceImpl) readStores() storeBundle {
+	return s.registryServiceImpl.readStores()
+}
+
+func (s *serverServiceImpl) inTransaction(ctx context.Context, fn func(context.Context, storeBundle) error) error {
+	return s.registryServiceImpl.inTransaction(ctx, fn)
+}
+
+func (s *serverServiceImpl) ensureSemanticEmbedding(ctx context.Context, opts *database.SemanticSearchOptions) error {
+	return s.registryServiceImpl.ensureSemanticEmbedding(ctx, opts)
+}
+
+func (s *serverServiceImpl) shouldGenerateEmbeddingsOnPublish() bool {
+	return s.registryServiceImpl.shouldGenerateEmbeddingsOnPublish()
+}
+
+func (s *registryServiceImpl) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	return s.serverService().ListServers(ctx, filter, cursor, limit)
+}
+
+func (s *registryServiceImpl) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.serverService().GetServerByName(ctx, serverName)
+}
+
+func (s *registryServiceImpl) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	return s.serverService().GetServerByNameAndVersion(ctx, serverName, version)
+}
+
+func (s *registryServiceImpl) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	return s.serverService().GetAllVersionsByServerName(ctx, serverName)
+}
+
+func (s *registryServiceImpl) CreateServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return s.serverService().CreateServer(ctx, req)
+}
+
+func (s *registryServiceImpl) UpdateServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error) {
+	return s.serverService().UpdateServer(ctx, serverName, version, req, newStatus)
+}
+
+func (s *registryServiceImpl) StoreServerReadme(ctx context.Context, serverName, version string, content []byte, contentType string) error {
+	return s.serverService().StoreServerReadme(ctx, serverName, version, content, contentType)
+}
+
+func (s *registryServiceImpl) GetServerReadmeLatest(ctx context.Context, serverName string) (*database.ServerReadme, error) {
+	return s.serverService().GetServerReadmeLatest(ctx, serverName)
+}
+
+func (s *registryServiceImpl) GetServerReadmeByVersion(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
+	return s.serverService().GetServerReadmeByVersion(ctx, serverName, version)
+}
+
+func (s *registryServiceImpl) DeleteServer(ctx context.Context, serverName, version string) error {
+	return s.serverService().DeleteServer(ctx, serverName, version)
+}
+
+func (s *registryServiceImpl) UpsertServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
+	return s.serverService().UpsertServerEmbedding(ctx, serverName, version, embedding)
+}
+
+func (s *registryServiceImpl) GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	return s.serverService().GetServerEmbeddingMetadata(ctx, serverName, version)
+}
+
+func (s *registryServiceImpl) validateNoDuplicateRemoteURLs(ctx context.Context, servers database.ServerStore, serverDetail apiv0.ServerJSON) error {
+	return s.serverService().validateNoDuplicateRemoteURLs(ctx, servers, serverDetail)
+}
+
 // ServerService defines server catalog and mutation operations.
 type ServerService interface {
 	// ListServers retrieve all servers with optional filtering
