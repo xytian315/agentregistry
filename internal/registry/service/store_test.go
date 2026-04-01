@@ -15,8 +15,14 @@ type storeTestTx struct {
 	token *int
 }
 
+type storeTestStore struct {
+	database.Store
+	db *storeTestDB
+	tx database.Transaction
+}
+
 type storeTestDB struct {
-	database.Database
+	database.ServiceDatabase
 	testingT         *testing.T
 	inTransaction    bool
 	listServersFn    func(ctx context.Context, tx database.Transaction, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
@@ -29,62 +35,104 @@ type storeTestDB struct {
 	deleteAgentFn    func(ctx context.Context, tx database.Transaction, agentName, version string) error
 }
 
-func (m *storeTestDB) InTransaction(ctx context.Context, fn func(context.Context, database.Transaction) error) error {
+var _ database.ServiceDatabase = (*storeTestDB)(nil)
+
+func (m *storeTestDB) asStore(tx database.Transaction) storeTestStore {
+	return storeTestStore{db: m, tx: tx}
+}
+
+func (m *storeTestDB) InTransaction(ctx context.Context, fn func(context.Context, database.Store) error) error {
 	m.inTransaction = true
 	defer func() {
 		m.inTransaction = false
 	}()
 
 	token := 1
-	return fn(ctx, storeTestTx{token: &token})
+	return fn(ctx, m.asStore(storeTestTx{token: &token}))
 }
 
-func (m *storeTestDB) ListServers(ctx context.Context, tx database.Transaction, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
-	require.NotNil(m.testingT, m.testingT, "testingT must be set")
-	require.NotNil(m.testingT, m.listServersFn, "listServersFn must be set")
-	return m.listServersFn(ctx, tx, filter, cursor, limit)
+func (m *storeTestDB) Close() error {
+	return nil
 }
 
-func (m *storeTestDB) ListAgents(ctx context.Context, tx database.Transaction, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
-	require.NotNil(m.testingT, m.testingT, "testingT must be set")
-	require.NotNil(m.testingT, m.listAgentsFn, "listAgentsFn must be set")
-	return m.listAgentsFn(ctx, tx, filter, cursor, limit)
+func (m *storeTestDB) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	return m.asStore(nil).ListServers(ctx, filter, cursor, limit)
 }
 
-func (m *storeTestDB) ListSkills(ctx context.Context, tx database.Transaction, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
-	require.NotNil(m.testingT, m.testingT, "testingT must be set")
-	require.NotNil(m.testingT, m.listSkillsFn, "listSkillsFn must be set")
-	return m.listSkillsFn(ctx, tx, filter, cursor, limit)
+func (m *storeTestDB) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	return m.asStore(nil).ListAgents(ctx, filter, cursor, limit)
 }
 
-func (m *storeTestDB) ListPrompts(ctx context.Context, tx database.Transaction, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
-	require.NotNil(m.testingT, m.testingT, "testingT must be set")
-	require.NotNil(m.testingT, m.listPromptsFn, "listPromptsFn must be set")
-	return m.listPromptsFn(ctx, tx, filter, cursor, limit)
+func (m *storeTestDB) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+	return m.asStore(nil).ListSkills(ctx, filter, cursor, limit)
 }
 
-func (m *storeTestDB) ListProviders(ctx context.Context, tx database.Transaction, platform *string) ([]*models.Provider, error) {
-	require.NotNil(m.testingT, m.testingT, "testingT must be set")
-	require.NotNil(m.testingT, m.listProvidersFn, "listProvidersFn must be set")
-	return m.listProvidersFn(ctx, tx, platform)
+func (m *storeTestDB) ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
+	return m.asStore(nil).ListPrompts(ctx, filter, cursor, limit)
 }
 
-func (m *storeTestDB) GetDeployments(ctx context.Context, tx database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
-	require.NotNil(m.testingT, m.testingT, "testingT must be set")
-	require.NotNil(m.testingT, m.getDeploymentsFn, "getDeploymentsFn must be set")
-	return m.getDeploymentsFn(ctx, tx, filter)
+func (m *storeTestDB) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
+	return m.asStore(nil).ListProviders(ctx, platform)
 }
 
-func (m *storeTestDB) DeleteServer(ctx context.Context, tx database.Transaction, serverName, version string) error {
-	require.NotNil(m.testingT, m.testingT, "testingT must be set")
-	require.NotNil(m.testingT, m.deleteServerFn, "deleteServerFn must be set")
-	return m.deleteServerFn(ctx, tx, serverName, version)
+func (m *storeTestDB) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	return m.asStore(nil).GetDeployments(ctx, filter)
 }
 
-func (m *storeTestDB) DeleteAgent(ctx context.Context, tx database.Transaction, agentName, version string) error {
-	require.NotNil(m.testingT, m.testingT, "testingT must be set")
-	require.NotNil(m.testingT, m.deleteAgentFn, "deleteAgentFn must be set")
-	return m.deleteAgentFn(ctx, tx, agentName, version)
+func (m *storeTestDB) DeleteServer(ctx context.Context, serverName, version string) error {
+	return m.asStore(nil).DeleteServer(ctx, serverName, version)
+}
+
+func (m *storeTestDB) DeleteAgent(ctx context.Context, agentName, version string) error {
+	return m.asStore(nil).DeleteAgent(ctx, agentName, version)
+}
+
+func (s storeTestStore) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
+	require.NotNil(s.db.testingT, s.db.listServersFn, "listServersFn must be set")
+	return s.db.listServersFn(ctx, s.tx, filter, cursor, limit)
+}
+
+func (s storeTestStore) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
+	require.NotNil(s.db.testingT, s.db.listAgentsFn, "listAgentsFn must be set")
+	return s.db.listAgentsFn(ctx, s.tx, filter, cursor, limit)
+}
+
+func (s storeTestStore) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
+	require.NotNil(s.db.testingT, s.db.listSkillsFn, "listSkillsFn must be set")
+	return s.db.listSkillsFn(ctx, s.tx, filter, cursor, limit)
+}
+
+func (s storeTestStore) ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
+	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
+	require.NotNil(s.db.testingT, s.db.listPromptsFn, "listPromptsFn must be set")
+	return s.db.listPromptsFn(ctx, s.tx, filter, cursor, limit)
+}
+
+func (s storeTestStore) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
+	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
+	require.NotNil(s.db.testingT, s.db.listProvidersFn, "listProvidersFn must be set")
+	return s.db.listProvidersFn(ctx, s.tx, platform)
+}
+
+func (s storeTestStore) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
+	require.NotNil(s.db.testingT, s.db.getDeploymentsFn, "getDeploymentsFn must be set")
+	return s.db.getDeploymentsFn(ctx, s.tx, filter)
+}
+
+func (s storeTestStore) DeleteServer(ctx context.Context, serverName, version string) error {
+	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
+	require.NotNil(s.db.testingT, s.db.deleteServerFn, "deleteServerFn must be set")
+	return s.db.deleteServerFn(ctx, s.tx, serverName, version)
+}
+
+func (s storeTestStore) DeleteAgent(ctx context.Context, agentName, version string) error {
+	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
+	require.NotNil(s.db.testingT, s.db.deleteAgentFn, "deleteAgentFn must be set")
+	return s.db.deleteAgentFn(ctx, s.tx, agentName, version)
 }
 
 func TestReadStoresUsesServiceDatabase(t *testing.T) {
@@ -101,7 +149,7 @@ func TestReadStoresUsesServiceDatabase(t *testing.T) {
 		},
 	}
 
-	svc := &registryServiceImpl{storeDB: database.NewServiceDatabase(mockDB)}
+	svc := &registryServiceImpl{storeDB: mockDB}
 
 	_, nextCursor, err := svc.readStores().servers.ListServers(context.Background(), nil, "", 25)
 	require.NoError(t, err)
@@ -255,8 +303,8 @@ func TestReadStoresUsesRepositoryOverrides(t *testing.T) {
 			override := &storeTestDB{testingT: t}
 			tt.configure(base, override, &baseCalled, &overrideCalled)
 
-			svc := &registryServiceImpl{storeDB: database.NewServiceDatabase(base)}
-			tt.setRepo(svc, database.NewServiceDatabase(override))
+			svc := &registryServiceImpl{storeDB: base}
+			tt.setRepo(svc, override)
 
 			tt.invoke(t, svc.readStores())
 			require.True(t, overrideCalled)
@@ -279,7 +327,7 @@ func TestInTransactionUsesTransactionalStores(t *testing.T) {
 		},
 	}
 
-	svc := &registryServiceImpl{storeDB: database.NewServiceDatabase(mockDB)}
+	svc := &registryServiceImpl{storeDB: mockDB}
 
 	err := svc.inTransaction(context.Background(), func(ctx context.Context, stores storeBundle) error {
 		return stores.servers.DeleteServer(ctx, "io.test/server", "1.0.0")
@@ -307,7 +355,7 @@ func TestInTransactionReusesTransactionAcrossStoreTypes(t *testing.T) {
 		},
 	}
 
-	svc := &registryServiceImpl{storeDB: database.NewServiceDatabase(mockDB)}
+	svc := &registryServiceImpl{storeDB: mockDB}
 
 	err := svc.inTransaction(context.Background(), func(ctx context.Context, stores storeBundle) error {
 		if err := stores.servers.DeleteServer(ctx, "io.test/server", "1.0.0"); err != nil {

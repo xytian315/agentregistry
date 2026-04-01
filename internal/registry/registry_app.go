@@ -150,6 +150,8 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 			map[string]types.DeploymentPlatformAdapter,
 		)
 	}
+	// TODO(phase-1): inject deployment adapters during service construction and remove this
+	// post-construction type assertion once the legacy service aggregate is gone.
 	if cfgSvc, ok := registryService.(platformAdapterConfigurer); ok {
 		cfgSvc.SetPlatformAdapters(deploymentPlatforms)
 	}
