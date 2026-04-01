@@ -44,7 +44,7 @@ type AgentVersionsInput struct {
 }
 
 // RegisterAgentsEndpoints registers all agent-related endpoints with a custom path prefix.
-func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc service.AgentService, deploymentSvc service.DeploymentService) {
+func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc service.AgentRouteService, deploymentSvc service.DeploymentService) {
 	tags := []string{"agents"}
 	if strings.Contains(pathPrefix, "admin") {
 		tags = append(tags, "admin")
@@ -251,7 +251,7 @@ type CreateAgentInput struct {
 }
 
 // createAgentHandler is the shared handler logic for creating agents
-func createAgentHandler(ctx context.Context, input *CreateAgentInput, agentSvc service.AgentService, deploymentSvc service.DeploymentService) (*types.Response[agentmodels.AgentResponse], error) {
+func createAgentHandler(ctx context.Context, input *CreateAgentInput, agentSvc service.AgentRouteService, deploymentSvc service.DeploymentService) (*types.Response[agentmodels.AgentResponse], error) {
 	// Create/update the agent (published defaults to false in the service layer)
 	createdAgent, err := agentSvc.CreateAgent(ctx, &input.Body)
 	if err != nil {
@@ -277,7 +277,7 @@ func createAgentHandler(ctx context.Context, input *CreateAgentInput, agentSvc s
 }
 
 // RegisterAgentsCreateEndpoint registers POST /agents (create or update; immediately visible).
-func RegisterAgentsCreateEndpoint(api huma.API, pathPrefix string, agentSvc service.AgentService, deploymentSvc service.DeploymentService) {
+func RegisterAgentsCreateEndpoint(api huma.API, pathPrefix string, agentSvc service.AgentRouteService, deploymentSvc service.DeploymentService) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-agent" + strings.ReplaceAll(pathPrefix, "/", "-"),
 		Method:      http.MethodPost,

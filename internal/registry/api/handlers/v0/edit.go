@@ -26,7 +26,7 @@ type EditServerInput struct {
 }
 
 // RegisterEditEndpoints registers the edit endpoint with a custom path prefix
-func RegisterEditEndpoints(api huma.API, pathPrefix string, serverSvc service.ServerService, deploymentSvc service.DeploymentService) {
+func RegisterEditEndpoints(api huma.API, pathPrefix string, serverSvc service.ServerRouteService, deploymentSvc service.DeploymentService) {
 	// Edit server endpoint
 	huma.Register(api, huma.Operation{
 		OperationID: "edit-server" + strings.ReplaceAll(pathPrefix, "/", "-"),
