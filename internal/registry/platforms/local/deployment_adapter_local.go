@@ -15,7 +15,8 @@ import (
 )
 
 type localDeploymentAdapter struct {
-	registry         platformtypes.PlatformRuntimeService
+	serverService    platformtypes.ServerRuntimeService
+	agentService     platformtypes.AgentRuntimeService
 	platformDir      string
 	agentGatewayPort uint16
 }
@@ -67,12 +68,14 @@ func (c *localAgentConfig) cleanup() error {
 }
 
 func NewLocalDeploymentAdapter(
-	registry platformtypes.PlatformRuntimeService,
+	serverService platformtypes.ServerRuntimeService,
+	agentService platformtypes.AgentRuntimeService,
 	platformDir string,
 	agentGatewayPort uint16,
 ) *localDeploymentAdapter {
 	return &localDeploymentAdapter{
-		registry:         registry,
+		serverService:    serverService,
+		agentService:     agentService,
 		platformDir:      platformDir,
 		agentGatewayPort: agentGatewayPort,
 	}
@@ -198,13 +201,13 @@ func (a *localDeploymentAdapter) buildLocalDesiredState(
 	resourceType := strings.ToLower(strings.TrimSpace(deployment.ResourceType))
 	switch resourceType {
 	case "mcp":
-		server, err := utils.BuildPlatformMCPServer(ctx, a.registry, deployment, "")
+		server, err := utils.BuildPlatformMCPServer(ctx, a.serverService, deployment, "")
 		if err != nil {
 			return nil, nil, err
 		}
 		return &platformtypes.DesiredState{MCPServers: []*platformtypes.MCPServer{server}}, nil, nil
 	case "agent":
-		resolved, err := utils.ResolveAgent(ctx, a.registry, deployment, "")
+		resolved, err := utils.ResolveAgent(ctx, a.serverService, a.agentService, deployment, "")
 		if err != nil {
 			return nil, nil, err
 		}
@@ -214,7 +217,7 @@ func (a *localDeploymentAdapter) buildLocalDesiredState(
 				AgentName: resolved.Agent.Name,
 				Version:   resolved.Agent.Version,
 			},
-			pythonServers: append(common.PythonServersFromManifest(mustAgentManifest(ctx, a.registry, deployment)), resolved.PythonConfigServers...),
+			pythonServers: append(common.PythonServersFromManifest(mustAgentManifest(ctx, a.agentService, deployment)), resolved.PythonConfigServers...),
 			pythonPrompts: pythonPromptsFromResolved(resolved.ResolvedPrompts),
 		}
 		return &platformtypes.DesiredState{

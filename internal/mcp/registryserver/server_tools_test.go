@@ -190,7 +190,7 @@ func TestServerTools_ListAndReadme(t *testing.T) {
 		},
 	}, serverReadme: readme}
 
-	server := NewServer(reg)
+	server := NewServer(reg, reg, reg, reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -274,7 +274,7 @@ func TestAgentAndSkillTools_ListAndGet(t *testing.T) {
 		},
 	}}
 
-	server := NewServer(reg)
+	server := NewServer(reg, reg, reg, reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)

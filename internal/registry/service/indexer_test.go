@@ -103,7 +103,7 @@ func (m *mockProvider) getCallCount() int {
 
 func TestIndexer_Run_ProviderNil(t *testing.T) {
 	mockRegistry := newFakeIndexerRegistry()
-	indexer := NewIndexer(mockRegistry, nil, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, nil, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -120,7 +120,7 @@ func TestIndexer_Run_ProviderNil(t *testing.T) {
 func TestIndexer_Run_NoTargetsSelected(t *testing.T) {
 	mockRegistry := newFakeIndexerRegistry()
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: false,
@@ -165,7 +165,7 @@ func TestIndexer_Run_ServersOnly(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -216,7 +216,7 @@ func TestIndexer_Run_AgentsOnly(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: false,
@@ -247,7 +247,7 @@ func TestIndexer_Run_DryRun(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -284,7 +284,7 @@ func TestIndexer_Run_Force(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -324,7 +324,7 @@ func TestIndexer_Run_SkipsUpToDate(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -356,7 +356,7 @@ func TestIndexer_Run_ContextCancelled(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	// Create a cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -388,7 +388,7 @@ func TestIndexer_Run_ProgressCallback(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	var progressCalls []IndexStats
 	var mu sync.Mutex
@@ -433,7 +433,7 @@ func TestIndexer_Run_EmptyPayloadSkipped(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -473,7 +473,7 @@ func TestIndexer_Run_BothServersAndAgents(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -505,7 +505,7 @@ func TestIndexer_Run_DefaultBatchSize(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockProv, 1536)
+	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,

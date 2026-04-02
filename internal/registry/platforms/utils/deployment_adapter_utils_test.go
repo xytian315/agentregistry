@@ -229,7 +229,7 @@ func TestResolveAgentDefaultsLocalPort(t *testing.T) {
 		},
 	}}
 
-	resolved, err := ResolveAgent(context.Background(), registry, &models.Deployment{
+	resolved, err := ResolveAgent(context.Background(), registry, registry, &models.Deployment{
 		ID:         "dep-123",
 		ServerName: "planner",
 		Version:    "1.0.0",
@@ -291,7 +291,8 @@ func TestResolveAgentNamespaceDefaulting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resolved, err := ResolveAgent(context.Background(), newRegistry(), &models.Deployment{
+			registry := newRegistry()
+			resolved, err := ResolveAgent(context.Background(), registry, registry, &models.Deployment{
 				ID:         "dep-123",
 				ServerName: "planner",
 				Version:    "1.0.0",

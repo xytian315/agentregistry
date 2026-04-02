@@ -11,7 +11,10 @@ import (
 
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/database"
-	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
+	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
+	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 	"github.com/modelcontextprotocol/registry/pkg/model"
@@ -20,8 +23,11 @@ import (
 func TestMCPListServers_HappyPath(t *testing.T) {
 	ctx := context.Background()
 	db := database.NewTestServiceDB(t)
-	svc := service.NewRegistryService(db, &config.Config{EnableRegistryValidation: false}, nil)
-	serverService := svc.Server()
+	cfg := &config.Config{EnableRegistryValidation: false}
+	serverService := serversvc.New(serversvc.Dependencies{StoreDB: db, Config: cfg})
+	agentService := agentsvc.New(agentsvc.Dependencies{StoreDB: db, Config: cfg})
+	skillService := skillsvc.New(skillsvc.Dependencies{StoreDB: db})
+	deploymentService := deploymentsvc.New(deploymentsvc.Dependencies{StoreDB: db})
 
 	// Seed a published server so the MCP tool can return it.
 	const (
@@ -40,7 +46,7 @@ func TestMCPListServers_HappyPath(t *testing.T) {
 	require.NoError(t, err, "seed server")
 
 	// Wire up MCP server and client over in-memory transports.
-	server := NewServer(service.NewMCPRegistryViewFromSet(svc))
+	server := NewServer(serverService, agentService, skillService, deploymentService)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 
 	serverSession, err := server.Connect(ctx, serverTransport, nil)

@@ -27,9 +27,14 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/jobs"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/platforms/kubernetes"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/platforms/local"
-	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/seed"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
+	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	promptsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/prompt"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
+	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/telemetry"
 	"github.com/agentregistry-dev/agentregistry/internal/version"
 	"github.com/agentregistry-dev/agentregistry/pkg/logging"
@@ -130,34 +135,37 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 	}
 
 	serviceDB := database.NewServiceDatabase(db)
-	bootstrapServices := service.NewSet(service.SetDependencies{
+	providerService := providersvc.New(providersvc.Dependencies{StoreDB: serviceDB})
+	serverService := serversvc.New(serversvc.Dependencies{
 		StoreDB:            serviceDB,
 		Config:             cfg,
 		EmbeddingsProvider: embeddingProvider,
 	})
-	var providerService service.ProviderService = bootstrapServices.Provider()
-	var platformRuntimeService platformtypes.PlatformRuntimeService = service.NewPlatformRuntimeViewFromSet(bootstrapServices)
+	agentService := agentsvc.New(agentsvc.Dependencies{
+		StoreDB:            serviceDB,
+		Config:             cfg,
+		EmbeddingsProvider: embeddingProvider,
+	})
 
 	// Initialize extension registries once and use them for both routing and service behavior.
 	providerPlatforms := v0.DefaultProviderPlatformAdapters(providerService)
 	maps.Copy(providerPlatforms, options.ProviderPlatforms)
 	deploymentPlatforms := map[string]types.DeploymentPlatformAdapter{
-		"local":      local.NewLocalDeploymentAdapter(platformRuntimeService, cfg.RuntimeDir, cfg.AgentGatewayPort),
-		"kubernetes": kubernetes.NewKubernetesDeploymentAdapter(platformRuntimeService),
+		"local":      local.NewLocalDeploymentAdapter(serverService, agentService, cfg.RuntimeDir, cfg.AgentGatewayPort),
+		"kubernetes": kubernetes.NewKubernetesDeploymentAdapter(providerService, serverService, agentService),
 	}
 	maps.Copy(deploymentPlatforms, options.DeploymentPlatforms)
-
-	registryService := service.NewSet(service.SetDependencies{
+	skillService := skillsvc.New(skillsvc.Dependencies{StoreDB: serviceDB})
+	promptService := promptsvc.New(promptsvc.Dependencies{StoreDB: serviceDB})
+	deploymentService := deploymentsvc.New(deploymentsvc.Dependencies{
 		StoreDB:            serviceDB,
-		Config:             cfg,
-		EmbeddingsProvider: embeddingProvider,
 		DeploymentAdapters: deploymentPlatforms,
 	})
-	providerService = registryService.Provider()
-	platformRuntimeService = service.NewPlatformRuntimeViewFromSet(registryService)
-	var serverService service.ServerService = registryService.Server()
-	var apiRouteService router.APIRouteService = service.NewAPIRouteViewFromSet(registryService)
-	var mcpRegistryService mcpregistry.Registry = service.NewMCPRegistryViewFromSet(registryService)
+	agentRouteService := agentService
+	mcpServerRegistry := serverService
+	mcpAgentRegistry := agentService
+	mcpSkillRegistry := skillService
+	mcpDeploymentRegistry := deploymentService
 
 	// Import builtin seed data unless it is disabled
 	if !cfg.DisableBuiltinSeed {
@@ -224,14 +232,14 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 	// Initialize job manager and indexer for embeddings.
 	if cfg.Embeddings.Enabled && embeddingProvider != nil {
 		jobManager := jobs.NewManager()
-		indexer := service.NewIndexer(service.NewIndexerRegistryViewFromSet(registryService), embeddingProvider, cfg.Embeddings.Dimensions)
+		indexer := service.NewIndexer(serverService, agentService, embeddingProvider, cfg.Embeddings.Dimensions)
 		routeOpts.Indexer = indexer
 		routeOpts.JobManager = jobManager
 		slog.Info("embeddings indexing API enabled")
 	}
 
 	// Initialize HTTP server
-	baseServer := api.NewServer(cfg, apiRouteService, metrics, versionInfo, options.UIHandler, authnProvider, routeOpts)
+	baseServer := api.NewServer(cfg, serverService, agentRouteService, skillService, promptService, providerService, deploymentService, metrics, versionInfo, options.UIHandler, authnProvider, routeOpts)
 
 	var server types.Server
 	if options.HTTPServerFactory != nil {
@@ -246,7 +254,7 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 
 	var mcpHTTPServer *http.Server
 	if cfg.MCPPort > 0 {
-		mcpServer := mcpregistry.NewServer(mcpRegistryService)
+		mcpServer := mcpregistry.NewServer(mcpServerRegistry, mcpAgentRegistry, mcpSkillRegistry, mcpDeploymentRegistry)
 
 		var handler http.Handler = mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
 			return mcpServer

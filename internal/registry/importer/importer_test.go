@@ -12,12 +12,17 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/database"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/importer"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/seed"
-	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
+	registrydb "github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 	"github.com/modelcontextprotocol/registry/pkg/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newTestServerService(storeDB registrydb.ServiceDatabase, cfg *config.Config) *serversvc.Service {
+	return serversvc.New(serversvc.Dependencies{StoreDB: storeDB, Config: cfg})
+}
 
 func TestImportService_LocalFile(t *testing.T) {
 	// Create a temporary seed file
@@ -45,8 +50,7 @@ func TestImportService_LocalFile(t *testing.T) {
 
 	// Create registry service
 	testDB := database.NewTestServiceDB(t)
-	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
-	serverService := registryService.Server()
+	serverService := newTestServerService(testDB, &config.Config{EnableRegistryValidation: false})
 
 	// Create importer service and test import
 	importerService := importer.NewService(serverService)
@@ -92,8 +96,7 @@ func TestImportService_HTTPFile(t *testing.T) {
 
 	// Create registry service
 	testDB := database.NewTestServiceDB(t)
-	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
-	serverService := registryService.Server()
+	serverService := newTestServerService(testDB, &config.Config{EnableRegistryValidation: false})
 
 	// Create importer service and test import
 	importerService := importer.NewService(serverService)
@@ -115,8 +118,7 @@ func TestImportService_RegistryPagination(t *testing.T) {
 
 	// Create registry service with test data
 	testDB := database.NewTestServiceDB(t)
-	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
-	serverService := registryService.Server()
+	serverService := newTestServerService(testDB, &config.Config{EnableRegistryValidation: false})
 
 	// Setup source registry with test data
 	sourceServers := []*apiv0.ServerJSON{
@@ -163,8 +165,7 @@ func TestImportService_RegistryPagination(t *testing.T) {
 
 	// Create target registry for import
 	targetDB := database.NewTestServiceDB(t)
-	targetRegistryService := service.NewRegistryService(targetDB, &config.Config{EnableRegistryValidation: false}, nil)
-	targetServerService := targetRegistryService.Server()
+	targetServerService := newTestServerService(targetDB, &config.Config{EnableRegistryValidation: false})
 	// Create importer service and test registry import
 	importerService := importer.NewService(targetServerService)
 	err := importerService.ImportFromPath(context.Background(), httpServer.URL+"/v0/servers", false)
@@ -187,8 +188,8 @@ func TestImportService_RegistryPagination(t *testing.T) {
 func TestImportService_ErrorHandling(t *testing.T) {
 	// Create registry service
 	testDB := database.NewTestServiceDB(t)
-	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
-	importerService := importer.NewService(registryService.Server())
+	serverService := newTestServerService(testDB, &config.Config{EnableRegistryValidation: false})
+	importerService := importer.NewService(serverService)
 
 	tests := []struct {
 		name        string
@@ -278,8 +279,7 @@ func TestImportService_ReadmeSeed(t *testing.T) {
 	require.NoError(t, os.WriteFile(readmeSeedPath, readmeData, 0o600))
 
 	testDB := database.NewTestServiceDB(t)
-	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
-	serverService := registryService.Server()
+	serverService := newTestServerService(testDB, &config.Config{EnableRegistryValidation: false})
 
 	importerService := importer.NewService(serverService)
 	importerService.SetReadmeSeedPath(readmeSeedPath)

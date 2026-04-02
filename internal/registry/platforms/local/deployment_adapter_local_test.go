@@ -137,7 +137,7 @@ func TestUndeploy_RemovesLocalArtifactsWhenRegistryArtifactIsMissing(t *testing.
 		return nil, database.ErrNotFound
 	}
 
-	adapter := NewLocalDeploymentAdapter(registry, tempDir, 8080)
+	adapter := NewLocalDeploymentAdapter(registry, registry, tempDir, 8080)
 
 	originalComposeUp := runLocalComposeUp
 	originalRefresh := refreshLocalAgentMCPConfig
@@ -256,7 +256,7 @@ func TestUndeploy_CallsComposeDownWhenNoServicesRemain(t *testing.T) {
 		return nil, database.ErrNotFound
 	}
 
-	adapter := NewLocalDeploymentAdapter(registry, tempDir, 8080)
+	adapter := NewLocalDeploymentAdapter(registry, registry, tempDir, 8080)
 
 	originalComposeUp := runLocalComposeUp
 	originalComposeDown := runLocalComposeDown
@@ -321,7 +321,7 @@ func TestDeploy_WritesPromptsConfig(t *testing.T) {
 		}, nil
 	}
 
-	adapter := NewLocalDeploymentAdapter(registry, tempDir, 8080)
+	adapter := NewLocalDeploymentAdapter(registry, registry, tempDir, 8080)
 
 	originalComposeUp := runLocalComposeUp
 	originalRefresh := refreshLocalAgentMCPConfig

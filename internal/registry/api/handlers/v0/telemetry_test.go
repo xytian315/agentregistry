@@ -19,7 +19,8 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/api/router"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/database"
-	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
+	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/telemetry"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 	"github.com/modelcontextprotocol/registry/pkg/model"
@@ -34,8 +35,9 @@ func TestPrometheusHandler(t *testing.T) {
 		EnableRegistryValidation: false, // Disable for unit tests
 	}
 
-	registryService := service.NewRegistryService(database.NewTestServiceDB(t), testConfig, nil)
-	serverService := registryService.Server()
+	storeDB := database.NewTestServiceDB(t)
+	serverService := serversvc.New(serversvc.Dependencies{StoreDB: storeDB, Config: testConfig})
+	deploymentService := deploymentsvc.New(deploymentsvc.Dependencies{StoreDB: storeDB})
 	server, err := serverService.CreateServer(context.Background(), &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        "io.github.example/test-server",
@@ -59,7 +61,7 @@ func TestPrometheusHandler(t *testing.T) {
 		router.WithSkipPaths("/health", "/metrics", "/ping", "/docs"),
 	))
 	v0.RegisterHealthEndpoint(api, "/v0", cfg, metrics)
-	v0.RegisterServersEndpoints(api, "/v0", serverService, registryService.Deployment())
+	v0.RegisterServersEndpoints(api, "/v0", serverService, deploymentService)
 
 	// Add /metrics for Prometheus metrics using promhttp
 	mux.Handle("/metrics", metrics.PrometheusHandler())

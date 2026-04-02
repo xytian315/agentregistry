@@ -37,7 +37,7 @@ func TestDeploymentTools_ListAndGet(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	server := NewServer(reg)
+	server := NewServer(reg, reg, reg, reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestDeploymentTools_NoAuthConfigured_AllowsRequests(t *testing.T) {
 		return &models.Deployment{ID: id, ServerName: "com.example/no-auth", Version: "1.0.0", ResourceType: "mcp", Env: map[string]string{}}, nil
 	}
 
-	server := NewServer(reg)
+	server := NewServer(reg, reg, reg, reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestDeploymentTools_DeployRemove(t *testing.T) {
 		return errors.New("not found")
 	}
 
-	server := NewServer(reg)
+	server := NewServer(reg, reg, reg, reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -263,7 +263,7 @@ func TestDeploymentTools_FilterResourceType(t *testing.T) {
 		return deployments, nil
 	}
 
-	server := NewServer(reg)
+	server := NewServer(reg, reg, reg, reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -301,7 +301,7 @@ func TestDeploymentTools_GetDeploymentRequiresID(t *testing.T) {
 	ctx := context.Background()
 	reg := &fakeMCPRegistry{}
 
-	server := NewServer(reg)
+	server := NewServer(reg, reg, reg, reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -328,7 +328,7 @@ func TestDeploymentTools_RemoveDeploymentRequiresID(t *testing.T) {
 	ctx := context.Background()
 	reg := &fakeMCPRegistry{}
 
-	server := NewServer(reg)
+	server := NewServer(reg, reg, reg, reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)

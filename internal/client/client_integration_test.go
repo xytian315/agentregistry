@@ -885,7 +885,7 @@ func newClientWithInProcessServer(t *testing.T, fake *fakeClientRegistry) (*Clie
 		},
 	}
 
-	router.NewHumaAPI(cfg, fake, mux, metrics, versionInfo, nil, nil, routeOpts)
+	router.NewHumaAPI(cfg, fake, fake, fake, fake, fake, fake, mux, metrics, versionInfo, nil, nil, routeOpts)
 	server := httptest.NewServer(mux)
 
 	client := NewClient(server.URL+"/v0", "test-token")

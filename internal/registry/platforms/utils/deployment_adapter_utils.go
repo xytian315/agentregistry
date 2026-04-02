@@ -50,11 +50,11 @@ func ValidateDeploymentRequest(deployment *models.Deployment, allowExisting bool
 
 func BuildPlatformMCPServer(
 	ctx context.Context,
-	registryService platformtypes.PlatformRuntimeService,
+	serverService platformtypes.ServerRuntimeService,
 	deployment *models.Deployment,
 	namespace string,
 ) (*platformtypes.MCPServer, error) {
-	serverResp, err := registryService.GetServerByNameAndVersion(ctx, deployment.ServerName, deployment.Version)
+	serverResp, err := serverService.GetServerByNameAndVersion(ctx, deployment.ServerName, deployment.Version)
 	if err != nil {
 		return nil, fmt.Errorf("load mcp server %s@%s: %w", deployment.ServerName, deployment.Version, err)
 	}
@@ -78,11 +78,12 @@ func BuildPlatformMCPServer(
 
 func ResolveAgent(
 	ctx context.Context,
-	registryService platformtypes.PlatformRuntimeService,
+	serverService platformtypes.ServerRuntimeService,
+	agentService platformtypes.AgentRuntimeService,
 	deployment *models.Deployment,
 	namespace string,
 ) (*platformtypes.ResolvedAgentConfig, error) {
-	agentResp, err := registryService.GetAgentByNameAndVersion(ctx, deployment.ServerName, deployment.Version)
+	agentResp, err := agentService.GetAgentByNameAndVersion(ctx, deployment.ServerName, deployment.Version)
 	if err != nil {
 		return nil, fmt.Errorf("load agent %s@%s: %w", deployment.ServerName, deployment.Version, err)
 	}
@@ -102,16 +103,16 @@ func ResolveAgent(
 	envValues["MODEL_PROVIDER"] = agentResp.Agent.ModelProvider
 	envValues["MODEL_NAME"] = agentResp.Agent.ModelName
 
-	resolvedServers, resolvedConfigs, _, err := resolveAgentManifestPlatformMCPServers(ctx, registryService, deployment.ID, &agentResp.Agent.AgentManifest, namespace)
+	resolvedServers, resolvedConfigs, _, err := resolveAgentManifestPlatformMCPServers(ctx, serverService, deployment.ID, &agentResp.Agent.AgentManifest, namespace)
 	if err != nil {
 		return nil, err
 	}
-	skills, err := registryService.ResolveAgentManifestSkills(ctx, &agentResp.Agent.AgentManifest)
+	skills, err := agentService.ResolveAgentManifestSkills(ctx, &agentResp.Agent.AgentManifest)
 	if err != nil {
 		return nil, err
 	}
 
-	prompts, err := registryService.ResolveAgentManifestPrompts(ctx, &agentResp.Agent.AgentManifest)
+	prompts, err := agentService.ResolveAgentManifestPrompts(ctx, &agentResp.Agent.AgentManifest)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func ResolveAgent(
 
 func resolveAgentManifestPlatformMCPServers(
 	ctx context.Context,
-	registryService platformtypes.PlatformRuntimeService,
+	serverService platformtypes.ServerRuntimeService,
 	deploymentID string,
 	manifest *models.AgentManifest,
 	namespace string,
@@ -157,7 +158,7 @@ func resolveAgentManifestPlatformMCPServers(
 			version = "latest"
 		}
 
-		serverResp, err := registryService.GetServerByNameAndVersion(ctx, mcpServer.RegistryServerName, version)
+		serverResp, err := serverService.GetServerByNameAndVersion(ctx, mcpServer.RegistryServerName, version)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("load resolved MCP server %s@%s: %w", mcpServer.RegistryServerName, version, err)
 		}

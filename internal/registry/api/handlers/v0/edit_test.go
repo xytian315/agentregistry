@@ -20,7 +20,8 @@ import (
 	v0 "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/database"
-	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
+	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 	"github.com/modelcontextprotocol/registry/pkg/model"
@@ -39,9 +40,9 @@ func TestEditServerEndpoint(t *testing.T) {
 	}
 
 	// Create registry service and test data
-	registryService := service.NewRegistryService(database.NewTestServiceDB(t), cfg, nil)
-	serverService := registryService.Server()
-	deploymentService := registryService.Deployment()
+	storeDB := database.NewTestServiceDB(t)
+	serverService := serversvc.New(serversvc.Dependencies{StoreDB: storeDB, Config: cfg})
+	deploymentService := deploymentsvc.New(deploymentsvc.Dependencies{StoreDB: storeDB})
 
 	// Create authorizer
 	jwtManager := auth.NewJWTManager(cfg)
@@ -450,9 +451,9 @@ func TestEditServerEndpointEdgeCases(t *testing.T) {
 	}
 
 	// Create registry service
-	registryService := service.NewRegistryService(database.NewTestServiceDB(t), cfg, nil)
-	serverService := registryService.Server()
-	deploymentService := registryService.Deployment()
+	storeDB := database.NewTestServiceDB(t)
+	serverService := serversvc.New(serversvc.Dependencies{StoreDB: storeDB, Config: cfg})
+	deploymentService := deploymentsvc.New(deploymentsvc.Dependencies{StoreDB: storeDB})
 
 	// Setup test servers with different characteristics
 	testServers := []struct {

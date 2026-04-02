@@ -17,6 +17,7 @@ import (
 	apitypes "github.com/agentregistry-dev/agentregistry/internal/registry/api/apitypes"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/api/router"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
+	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/telemetry"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
 )
@@ -148,7 +149,20 @@ func (s *Server) Mux() *http.ServeMux {
 
 // NewServer creates a new HTTP server
 // Note: AuthZ is handled at the DB/service layer, not at the API layer.
-func NewServer(cfg *config.Config, registryService router.APIRouteService, metrics *telemetry.Metrics, versionInfo *apitypes.VersionBody, customUIHandler http.Handler, authnProvider auth.AuthnProvider, routeOpts *router.RouteOptions) *Server {
+func NewServer(
+	cfg *config.Config,
+	serverSvc service.ServerRouteService,
+	agentSvc service.AgentRouteService,
+	skillSvc service.SkillService,
+	promptSvc service.PromptService,
+	providerSvc service.ProviderService,
+	deploymentSvc service.DeploymentService,
+	metrics *telemetry.Metrics,
+	versionInfo *apitypes.VersionBody,
+	customUIHandler http.Handler,
+	authnProvider auth.AuthnProvider,
+	routeOpts *router.RouteOptions,
+) *Server {
 	// Create HTTP mux and Huma API
 	mux := http.NewServeMux()
 
@@ -167,7 +181,7 @@ func NewServer(cfg *config.Config, registryService router.APIRouteService, metri
 		}
 	}
 
-	api := router.NewHumaAPI(cfg, registryService, mux, metrics, versionInfo, uiHandler, authnProvider, routeOpts)
+	api := router.NewHumaAPI(cfg, serverSvc, agentSvc, skillSvc, promptSvc, providerSvc, deploymentSvc, mux, metrics, versionInfo, uiHandler, authnProvider, routeOpts)
 
 	// Configure CORS with permissive settings for public API
 	corsHandler := cors.New(cors.Options{

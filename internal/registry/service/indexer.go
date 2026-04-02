@@ -44,11 +44,15 @@ type Indexer interface {
 	Run(ctx context.Context, opts IndexOptions, onProgress IndexProgressCallback) (*IndexResult, error)
 }
 
-// IndexerRegistryService defines the registry operations needed by the embeddings indexer.
-type IndexerRegistryService interface {
+// IndexerServerService defines the server operations needed by the embeddings indexer.
+type IndexerServerService interface {
 	ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
 	GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error)
 	UpsertServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error
+}
+
+// IndexerAgentService defines the agent operations needed by the embeddings indexer.
+type IndexerAgentService interface {
 	ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
 	GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error)
 	UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error
@@ -56,16 +60,18 @@ type IndexerRegistryService interface {
 
 // indexerImpl is the concrete implementation of Indexer.
 type indexerImpl struct {
-	registry   IndexerRegistryService
+	servers    IndexerServerService
+	agents     IndexerAgentService
 	provider   embeddings.Provider
 	dimensions int
 	logger     *slog.Logger
 }
 
 // NewIndexer creates a new embeddings indexer.
-func NewIndexer(registry IndexerRegistryService, provider embeddings.Provider, dimensions int) Indexer {
+func NewIndexer(servers IndexerServerService, agents IndexerAgentService, provider embeddings.Provider, dimensions int) Indexer {
 	return &indexerImpl{
-		registry:   registry,
+		servers:    servers,
+		agents:     agents,
 		provider:   provider,
 		dimensions: dimensions,
 		logger:     slog.Default().With("component", "indexer"),
@@ -122,7 +128,7 @@ func (s *indexerImpl) indexServers(ctx context.Context, opts IndexOptions, onPro
 		default:
 		}
 
-		servers, nextCursor, err := s.registry.ListServers(ctx, nil, cursor, opts.BatchSize)
+		servers, nextCursor, err := s.servers.ListServers(ctx, nil, cursor, opts.BatchSize)
 		if err != nil {
 			return stats, err
 		}
@@ -149,7 +155,7 @@ func (s *indexerImpl) indexServers(ctx context.Context, opts IndexOptions, onPro
 			}
 
 			payloadChecksum := embeddings.PayloadChecksum(payload)
-			meta, err := s.registry.GetServerEmbeddingMetadata(ctx, name, version)
+			meta, err := s.servers.GetServerEmbeddingMetadata(ctx, name, version)
 			if err != nil && !errors.Is(err, database.ErrNotFound) {
 				s.logger.Error("failed to read server embedding metadata", "name", name, "version", version, "error", err)
 				stats.Failures++
@@ -179,7 +185,7 @@ func (s *indexerImpl) indexServers(ctx context.Context, opts IndexOptions, onPro
 				continue
 			}
 
-			if err := s.registry.UpsertServerEmbedding(ctx, name, version, record); err != nil {
+			if err := s.servers.UpsertServerEmbedding(ctx, name, version, record); err != nil {
 				s.logger.Error("failed to persist server embedding", "name", name, "version", version, "error", err)
 				stats.Failures++
 				continue
@@ -220,7 +226,7 @@ func (s *indexerImpl) indexAgents(ctx context.Context, opts IndexOptions, onProg
 		default:
 		}
 
-		agents, nextCursor, err := s.registry.ListAgents(ctx, nil, cursor, opts.BatchSize)
+		agents, nextCursor, err := s.agents.ListAgents(ctx, nil, cursor, opts.BatchSize)
 		if err != nil {
 			return stats, err
 		}
@@ -247,7 +253,7 @@ func (s *indexerImpl) indexAgents(ctx context.Context, opts IndexOptions, onProg
 			}
 
 			payloadChecksum := embeddings.PayloadChecksum(payload)
-			meta, err := s.registry.GetAgentEmbeddingMetadata(ctx, name, version)
+			meta, err := s.agents.GetAgentEmbeddingMetadata(ctx, name, version)
 			if err != nil && !errors.Is(err, database.ErrNotFound) {
 				s.logger.Error("failed to read agent embedding metadata", "name", name, "version", version, "error", err)
 				stats.Failures++
@@ -277,7 +283,7 @@ func (s *indexerImpl) indexAgents(ctx context.Context, opts IndexOptions, onProg
 				continue
 			}
 
-			if err := s.registry.UpsertAgentEmbedding(ctx, name, version, record); err != nil {
+			if err := s.agents.UpsertAgentEmbedding(ctx, name, version, record); err != nil {
 				s.logger.Error("failed to persist agent embedding", "name", name, "version", version, "error", err)
 				stats.Failures++
 				continue

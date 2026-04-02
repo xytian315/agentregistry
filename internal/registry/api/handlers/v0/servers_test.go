@@ -17,7 +17,8 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
 	internaldb "github.com/agentregistry-dev/agentregistry/internal/registry/database"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/embeddings"
-	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
+	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	"github.com/danielgtaylor/huma/v2"
@@ -30,6 +31,16 @@ import (
 
 const semanticEmbeddingDimensions = 1536
 
+func newServerEndpointServices(storeDB database.ServiceDatabase, cfg *config.Config, embeddingProvider embeddings.Provider) (*serversvc.Service, *deploymentsvc.Service) {
+	serverService := serversvc.New(serversvc.Dependencies{
+		StoreDB:            storeDB,
+		Config:             cfg,
+		EmbeddingsProvider: embeddingProvider,
+	})
+	deploymentService := deploymentsvc.New(deploymentsvc.Dependencies{StoreDB: storeDB})
+	return serverService, deploymentService
+}
+
 func TestListServersEndpoint(t *testing.T) {
 	testSeed := make([]byte, ed25519.SeedSize)
 	_, randErr := rand.Read(testSeed)
@@ -40,9 +51,7 @@ func TestListServersEndpoint(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	registryService := service.NewRegistryService(internaldb.NewTestServiceDB(t), testConfig, nil)
-	serverService := registryService.Server()
-	deploymentService := registryService.Deployment()
+	serverService, deploymentService := newServerEndpointServices(internaldb.NewTestServiceDB(t), testConfig, nil)
 
 	// Setup test data
 	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
@@ -154,9 +163,7 @@ func TestListServersSemanticSearch(t *testing.T) {
 		"server": {0.1, 0.95, 0.0},
 	})
 
-	registryService := service.NewRegistryService(db, cfg, provider)
-	serverService := registryService.Server()
-	deploymentService := registryService.Deployment()
+	serverService, deploymentService := newServerEndpointServices(db, cfg, provider)
 
 	// Setup servers
 	backupServer := "com.example/backup-server"
@@ -242,9 +249,7 @@ func TestGetLatestServerVersionEndpoint(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	registryService := service.NewRegistryService(internaldb.NewTestServiceDB(t), testConfig, nil)
-	serverService := registryService.Server()
-	deploymentService := registryService.Deployment()
+	serverService, deploymentService := newServerEndpointServices(internaldb.NewTestServiceDB(t), testConfig, nil)
 
 	// Setup test data
 	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
@@ -315,9 +320,7 @@ func TestGetServerVersionEndpoint(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	registryService := service.NewRegistryService(internaldb.NewTestServiceDB(t), testConfig, nil)
-	serverService := registryService.Server()
-	deploymentService := registryService.Deployment()
+	serverService, deploymentService := newServerEndpointServices(internaldb.NewTestServiceDB(t), testConfig, nil)
 
 	serverName := "com.example/version-server"
 
@@ -504,9 +507,7 @@ func TestGetServerReadmeEndpoints(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	registryService := service.NewRegistryService(internaldb.NewTestServiceDB(t), testConfig, nil)
-	serverService := registryService.Server()
-	deploymentService := registryService.Deployment()
+	serverService, deploymentService := newServerEndpointServices(internaldb.NewTestServiceDB(t), testConfig, nil)
 
 	serverName := "com.example/readme-endpoint"
 	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
@@ -583,9 +584,7 @@ func TestGetAllVersionsEndpoint(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	registryService := service.NewRegistryService(internaldb.NewTestServiceDB(t), testConfig, nil)
-	serverService := registryService.Server()
-	deploymentService := registryService.Deployment()
+	serverService, deploymentService := newServerEndpointServices(internaldb.NewTestServiceDB(t), testConfig, nil)
 
 	serverName := "com.example/multi-version-server"
 
@@ -685,9 +684,7 @@ func TestServersEndpointEdgeCases(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	registryService := service.NewRegistryService(internaldb.NewTestServiceDB(t), testConfig, nil)
-	serverService := registryService.Server()
-	deploymentService := registryService.Deployment()
+	serverService, deploymentService := newServerEndpointServices(internaldb.NewTestServiceDB(t), testConfig, nil)
 
 	// Setup test data with edge case names that comply with constraints
 	specialServers := []struct {
