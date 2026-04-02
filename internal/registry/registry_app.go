@@ -135,8 +135,8 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 		Config:             cfg,
 		EmbeddingsProvider: embeddingProvider,
 	})
-	var providerService service.ProviderService = bootstrapServices
-	var platformRuntimeService platformtypes.PlatformRuntimeService = bootstrapServices
+	var providerService service.ProviderService = bootstrapServices.Provider()
+	var platformRuntimeService platformtypes.PlatformRuntimeService = service.NewPlatformRuntimeViewFromSet(bootstrapServices)
 
 	// Initialize extension registries once and use them for both routing and service behavior.
 	providerPlatforms := v0.DefaultProviderPlatformAdapters(providerService)
@@ -153,11 +153,11 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 		EmbeddingsProvider: embeddingProvider,
 		DeploymentAdapters: deploymentPlatforms,
 	})
-	providerService = registryService
-	platformRuntimeService = registryService
-	var serverService service.ServerService = registryService
-	var apiRouteService router.APIRouteService = registryService
-	var mcpRegistryService mcpregistry.Registry = registryService
+	providerService = registryService.Provider()
+	platformRuntimeService = service.NewPlatformRuntimeViewFromSet(registryService)
+	var serverService service.ServerService = registryService.Server()
+	var apiRouteService router.APIRouteService = service.NewAPIRouteViewFromSet(registryService)
+	var mcpRegistryService mcpregistry.Registry = service.NewMCPRegistryViewFromSet(registryService)
 
 	// Import builtin seed data unless it is disabled
 	if !cfg.DisableBuiltinSeed {
@@ -224,7 +224,7 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 	// Initialize job manager and indexer for embeddings.
 	if cfg.Embeddings.Enabled && embeddingProvider != nil {
 		jobManager := jobs.NewManager()
-		indexer := service.NewIndexer(registryService, embeddingProvider, cfg.Embeddings.Dimensions)
+		indexer := service.NewIndexer(service.NewIndexerRegistryViewFromSet(registryService), embeddingProvider, cfg.Embeddings.Dimensions)
 		routeOpts.Indexer = indexer
 		routeOpts.JobManager = jobManager
 		slog.Info("embeddings indexing API enabled")

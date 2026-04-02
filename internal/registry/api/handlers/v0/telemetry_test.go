@@ -35,7 +35,8 @@ func TestPrometheusHandler(t *testing.T) {
 	}
 
 	registryService := service.NewRegistryService(database.NewTestServiceDB(t), testConfig, nil)
-	server, err := registryService.CreateServer(context.Background(), &apiv0.ServerJSON{
+	serverService := registryService.Server()
+	server, err := serverService.CreateServer(context.Background(), &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        "io.github.example/test-server",
 		Description: "Test server detail",
@@ -58,7 +59,7 @@ func TestPrometheusHandler(t *testing.T) {
 		router.WithSkipPaths("/health", "/metrics", "/ping", "/docs"),
 	))
 	v0.RegisterHealthEndpoint(api, "/v0", cfg, metrics)
-	v0.RegisterServersEndpoints(api, "/v0", registryService, registryService)
+	v0.RegisterServersEndpoints(api, "/v0", serverService, registryService.Deployment())
 
 	// Add /metrics for Prometheus metrics using promhttp
 	mux.Handle("/metrics", metrics.PrometheusHandler())

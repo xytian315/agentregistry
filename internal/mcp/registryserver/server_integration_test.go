@@ -21,13 +21,14 @@ func TestMCPListServers_HappyPath(t *testing.T) {
 	ctx := context.Background()
 	db := database.NewTestServiceDB(t)
 	svc := service.NewRegistryService(db, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := svc.Server()
 
 	// Seed a published server so the MCP tool can return it.
 	const (
 		serverName    = "com.example/echo"
 		serverVersion = "1.0.0"
 	)
-	_, err := svc.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Echo test server",
@@ -39,7 +40,7 @@ func TestMCPListServers_HappyPath(t *testing.T) {
 	require.NoError(t, err, "seed server")
 
 	// Wire up MCP server and client over in-memory transports.
-	server := NewServer(svc)
+	server := NewServer(service.NewMCPRegistryViewFromSet(svc))
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 
 	serverSession, err := server.Connect(ctx, serverTransport, nil)

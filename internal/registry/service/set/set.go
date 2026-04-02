@@ -29,38 +29,7 @@ type Dependencies struct {
 	Logger             *slog.Logger
 }
 
-type serverDomain struct {
-	*serversvc.Service
-}
-
-type agentDomain struct {
-	*agentsvc.Service
-}
-
-type skillDomain struct {
-	*skillsvc.Service
-}
-
-type promptDomain struct {
-	*promptsvc.Service
-}
-
-type providerDomain struct {
-	*providersvc.Service
-}
-
-type deploymentDomain struct {
-	*deploymentsvc.Service
-}
-
 type Set struct {
-	serverDomain
-	agentDomain
-	skillDomain
-	promptDomain
-	providerDomain
-	deploymentDomain
-
 	server     *serversvc.Service
 	agent      *agentsvc.Service
 	skill      *skillsvc.Service
@@ -105,19 +74,13 @@ func New(deps Dependencies) *Set {
 	})
 
 	return &Set{
-		serverDomain:     serverDomain{Service: server},
-		agentDomain:      agentDomain{Service: agent},
-		skillDomain:      skillDomain{Service: skill},
-		promptDomain:     promptDomain{Service: prompt},
-		providerDomain:   providerDomain{Service: provider},
-		deploymentDomain: deploymentDomain{Service: deployment},
-		server:           server,
-		agent:            agent,
-		skill:            skill,
-		prompt:           prompt,
-		provider:         provider,
-		deployment:       deployment,
-		config:           deps.Config,
+		server:     server,
+		agent:      agent,
+		skill:      skill,
+		prompt:     prompt,
+		provider:   provider,
+		deployment: deployment,
+		config:     deps.Config,
 	}
 }
 

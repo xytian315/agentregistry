@@ -34,6 +34,7 @@ func TestCORSHeaders(t *testing.T) {
 	// Create test services
 	db := database.NewTestServiceDB(t)
 	registryService := service.NewRegistryService(db, cfg, nil)
+	apiRouteService := service.NewAPIRouteViewFromSet(registryService)
 
 	shutdownTelemetry, metrics, err := telemetry.InitMetrics("test")
 	require.NoError(t, err)
@@ -46,7 +47,7 @@ func TestCORSHeaders(t *testing.T) {
 	}
 
 	// Create server
-	_ = api.NewServer(cfg, registryService, metrics, versionInfo, nil, nil, nil)
+	_ = api.NewServer(cfg, apiRouteService, metrics, versionInfo, nil, nil, nil)
 
 	tests := []struct {
 		name           string
@@ -148,6 +149,7 @@ func TestCORSHeaderValues(t *testing.T) {
 	// Create test services
 	db := database.NewTestServiceDB(t)
 	registryService := service.NewRegistryService(db, cfg, nil)
+	apiRouteService := service.NewAPIRouteViewFromSet(registryService)
 
 	shutdownTelemetry, metrics, err := telemetry.InitMetrics("test")
 	require.NoError(t, err)
@@ -160,7 +162,7 @@ func TestCORSHeaderValues(t *testing.T) {
 	}
 
 	// Create server
-	_ = api.NewServer(cfg, registryService, metrics, versionInfo, nil, nil, nil)
+	_ = api.NewServer(cfg, apiRouteService, metrics, versionInfo, nil, nil, nil)
 
 	// Test that CORS is configured with correct values
 	// This is more of a documentation test to ensure we know what CORS settings we use

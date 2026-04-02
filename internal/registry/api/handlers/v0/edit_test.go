@@ -40,6 +40,8 @@ func TestEditServerEndpoint(t *testing.T) {
 
 	// Create registry service and test data
 	registryService := service.NewRegistryService(database.NewTestServiceDB(t), cfg, nil)
+	serverService := registryService.Server()
+	deploymentService := registryService.Deployment()
 
 	// Create authorizer
 	jwtManager := auth.NewJWTManager(cfg)
@@ -72,7 +74,7 @@ func TestEditServerEndpoint(t *testing.T) {
 
 	// Create the test servers
 	for _, server := range testServers {
-		_, err := registryService.CreateServer(context.Background(), server)
+		_, err := serverService.CreateServer(context.Background(), server)
 		require.NoError(t, err)
 	}
 
@@ -88,12 +90,12 @@ func TestEditServerEndpoint(t *testing.T) {
 			ID:     "testuser/deleted-server",
 		},
 	}
-	_, err = registryService.CreateServer(context.Background(), deletedServer)
+	_, err = serverService.CreateServer(context.Background(), deletedServer)
 	require.NoError(t, err)
 
 	// Set the server to deleted status
 	ctxWithAuth := database.WithTestSession(context.Background())
-	_, err = registryService.UpdateServer(ctxWithAuth, deletedServer.Name, deletedServer.Version, deletedServer, stringPtr(string(model.StatusDeleted)))
+	_, err = serverService.UpdateServer(ctxWithAuth, deletedServer.Name, deletedServer.Version, deletedServer, stringPtr(string(model.StatusDeleted)))
 	require.NoError(t, err)
 
 	// Create a server with build metadata for URL encoding test
@@ -108,7 +110,7 @@ func TestEditServerEndpoint(t *testing.T) {
 			ID:     "testuser/build-metadata-server",
 		},
 	}
-	_, err = registryService.CreateServer(context.Background(), buildMetadataServer)
+	_, err = serverService.CreateServer(context.Background(), buildMetadataServer)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -382,7 +384,7 @@ func TestEditServerEndpoint(t *testing.T) {
 			api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
 
 			// Register edit endpoints
-			v0.RegisterEditEndpoints(api, "/v0", registryService, registryService)
+			v0.RegisterEditEndpoints(api, "/v0", serverService, deploymentService)
 
 			// Create request body
 			requestBody, err := json.Marshal(tc.requestBody)
@@ -449,6 +451,8 @@ func TestEditServerEndpointEdgeCases(t *testing.T) {
 
 	// Create registry service
 	registryService := service.NewRegistryService(database.NewTestServiceDB(t), cfg, nil)
+	serverService := registryService.Server()
+	deploymentService := registryService.Deployment()
 
 	// Setup test servers with different characteristics
 	testServers := []struct {
@@ -463,7 +467,7 @@ func TestEditServerEndpointEdgeCases(t *testing.T) {
 	}
 
 	for _, server := range testServers {
-		_, err := registryService.CreateServer(context.Background(), &apiv0.ServerJSON{
+		_, err := serverService.CreateServer(context.Background(), &apiv0.ServerJSON{
 			Schema:      model.CurrentSchemaURL,
 			Name:        server.name,
 			Description: "Test server for editing",
@@ -474,7 +478,7 @@ func TestEditServerEndpointEdgeCases(t *testing.T) {
 		// Set specific status if not active
 		if server.status != model.StatusActive {
 			ctxWithAuth := database.WithTestSession(context.Background())
-			_, err = registryService.UpdateServer(ctxWithAuth, server.name, server.version, &apiv0.ServerJSON{
+			_, err = serverService.UpdateServer(ctxWithAuth, server.name, server.version, &apiv0.ServerJSON{
 				Schema:      model.CurrentSchemaURL,
 				Name:        server.name,
 				Description: "Test server for editing",
@@ -487,7 +491,7 @@ func TestEditServerEndpointEdgeCases(t *testing.T) {
 	// Create API
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0.RegisterEditEndpoints(api, "/v0", registryService, registryService)
+	v0.RegisterEditEndpoints(api, "/v0", serverService, deploymentService)
 
 	t.Run("status transitions", func(t *testing.T) {
 		tests := []struct {
@@ -587,7 +591,7 @@ func TestEditServerEndpointEdgeCases(t *testing.T) {
 	t.Run("URL encoding edge cases", func(t *testing.T) {
 		// Create server with special characters
 		specialServerName := "io.dots.and-dashes/server_with_underscores"
-		_, err := registryService.CreateServer(context.Background(), &apiv0.ServerJSON{
+		_, err := serverService.CreateServer(context.Background(), &apiv0.ServerJSON{
 			Schema:      model.CurrentSchemaURL,
 			Name:        specialServerName,
 			Description: "Server with special characters",
@@ -687,7 +691,7 @@ func TestEditServerEndpointEdgeCases(t *testing.T) {
 		assert.Equal(t, "1.0.0", response.Server.Version)
 
 		// Verify the other version wasn't affected
-		otherVersion, err := registryService.GetServerByNameAndVersion(context.Background(), "com.example/multi-version-server", "2.0.0")
+		otherVersion, err := serverService.GetServerByNameAndVersion(context.Background(), "com.example/multi-version-server", "2.0.0")
 		require.NoError(t, err)
 		assert.NotEqual(t, "Updated v1.0.0 specifically", otherVersion.Server.Description)
 	})

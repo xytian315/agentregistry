@@ -46,14 +46,15 @@ func TestImportService_LocalFile(t *testing.T) {
 	// Create registry service
 	testDB := database.NewTestServiceDB(t)
 	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := registryService.Server()
 
 	// Create importer service and test import
-	importerService := importer.NewService(registryService)
+	importerService := importer.NewService(serverService)
 	err = importerService.ImportFromPath(context.Background(), tempFile, false)
 	require.NoError(t, err)
 
 	// Verify the server was imported using registry service
-	servers, _, err := registryService.ListServers(context.Background(), nil, "", 10)
+	servers, _, err := serverService.ListServers(context.Background(), nil, "", 10)
 	require.NoError(t, err)
 	assert.Len(t, servers, 1)
 	assert.Equal(t, "io.github.test/test-server-1", servers[0].Server.Name)
@@ -92,14 +93,15 @@ func TestImportService_HTTPFile(t *testing.T) {
 	// Create registry service
 	testDB := database.NewTestServiceDB(t)
 	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := registryService.Server()
 
 	// Create importer service and test import
-	importerService := importer.NewService(registryService)
+	importerService := importer.NewService(serverService)
 	err = importerService.ImportFromPath(context.Background(), httpServer.URL+"/seed.json", false)
 	require.NoError(t, err)
 
 	// Verify the server was imported
-	servers, _, err := registryService.ListServers(context.Background(), nil, "", 10)
+	servers, _, err := serverService.ListServers(context.Background(), nil, "", 10)
 	require.NoError(t, err)
 	assert.Len(t, servers, 1)
 	assert.Equal(t, "io.github.test/http-test-server", servers[0].Server.Name)
@@ -114,6 +116,7 @@ func TestImportService_RegistryPagination(t *testing.T) {
 	// Create registry service with test data
 	testDB := database.NewTestServiceDB(t)
 	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := registryService.Server()
 
 	// Setup source registry with test data
 	sourceServers := []*apiv0.ServerJSON{
@@ -132,13 +135,13 @@ func TestImportService_RegistryPagination(t *testing.T) {
 	}
 
 	for _, server := range sourceServers {
-		_, err := registryService.CreateServer(ctx, server)
+		_, err := serverService.CreateServer(ctx, server)
 		require.NoError(t, err)
 	}
 
 	// Create test HTTP server that serves the registry API
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		servers, _, _ := registryService.ListServers(ctx, nil, "", 10)
+		servers, _, _ := serverService.ListServers(ctx, nil, "", 10)
 
 		// Convert to response format
 		serverValues := make([]apiv0.ServerResponse, len(servers))
@@ -161,13 +164,14 @@ func TestImportService_RegistryPagination(t *testing.T) {
 	// Create target registry for import
 	targetDB := database.NewTestServiceDB(t)
 	targetRegistryService := service.NewRegistryService(targetDB, &config.Config{EnableRegistryValidation: false}, nil)
+	targetServerService := targetRegistryService.Server()
 	// Create importer service and test registry import
-	importerService := importer.NewService(targetRegistryService)
+	importerService := importer.NewService(targetServerService)
 	err := importerService.ImportFromPath(context.Background(), httpServer.URL+"/v0/servers", false)
 	require.NoError(t, err)
 
 	// Verify servers were imported
-	importedServers, _, err := targetRegistryService.ListServers(context.Background(), nil, "", 10)
+	importedServers, _, err := targetServerService.ListServers(context.Background(), nil, "", 10)
 	require.NoError(t, err)
 	assert.Len(t, importedServers, 2)
 
@@ -184,7 +188,7 @@ func TestImportService_ErrorHandling(t *testing.T) {
 	// Create registry service
 	testDB := database.NewTestServiceDB(t)
 	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
-	importerService := importer.NewService(registryService)
+	importerService := importer.NewService(registryService.Server())
 
 	tests := []struct {
 		name        string
@@ -275,14 +279,15 @@ func TestImportService_ReadmeSeed(t *testing.T) {
 
 	testDB := database.NewTestServiceDB(t)
 	registryService := service.NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := registryService.Server()
 
-	importerService := importer.NewService(registryService)
+	importerService := importer.NewService(serverService)
 	importerService.SetReadmeSeedPath(readmeSeedPath)
 
 	err = importerService.ImportFromPath(context.Background(), serverSeedPath, false)
 	require.NoError(t, err)
 
-	readme, err := registryService.GetServerReadmeByVersion(context.Background(), "com.example/readme-server", "1.0.0")
+	readme, err := serverService.GetServerReadmeByVersion(context.Background(), "com.example/readme-server", "1.0.0")
 	require.NoError(t, err)
 	require.NotNil(t, readme)
 	assert.Equal(t, "text/markdown", readme.ContentType)

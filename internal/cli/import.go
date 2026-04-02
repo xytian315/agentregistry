@@ -85,7 +85,7 @@ var ImportCmd = &cobra.Command{
 			headerMap[key] = value
 		}
 
-		importerService := importer.NewService(registryService)
+		importerService := importer.NewService(registryService.Server())
 		importerService.SetHTTPClient(httpClient)
 		importerService.SetRequestHeaders(headerMap)
 		importerService.SetUpdateIfExists(importUpdate)

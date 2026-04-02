@@ -108,10 +108,11 @@ func TestValidateNoDuplicateRemoteURLs(t *testing.T) {
 
 	testDB := internaldb.NewTestServiceDB(t)
 	service := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := service.Server()
 
 	// Create existing servers using the new CreateServer method
 	for _, server := range existingServers {
-		_, err := service.CreateServer(ctx, server)
+		_, err := serverService.CreateServer(ctx, server)
 		require.NoError(t, err, "failed to create server: %v", err)
 	}
 
@@ -193,9 +194,10 @@ func TestGetServerByName(t *testing.T) {
 	ctx := context.Background()
 	testDB := internaldb.NewTestServiceDB(t)
 	service := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := service.Server()
 
 	// Create multiple versions of the same server
-	_, err := service.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        "com.example/test-server",
 		Description: "Test server v1",
@@ -203,7 +205,7 @@ func TestGetServerByName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        "com.example/test-server",
 		Description: "Test server v2",
@@ -239,7 +241,7 @@ func TestGetServerByName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := service.GetServerByName(ctx, tt.serverName)
+			result, err := serverService.GetServerByName(ctx, tt.serverName)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -262,11 +264,12 @@ func TestGetServerByNameAndVersion(t *testing.T) {
 	ctx := context.Background()
 	testDB := internaldb.NewTestServiceDB(t)
 	service := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := service.Server()
 
 	serverName := "com.example/versioned-server"
 
 	// Create multiple versions of the same server
-	_, err := service.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Versioned server v1",
@@ -274,7 +277,7 @@ func TestGetServerByNameAndVersion(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Versioned server v2",
@@ -332,7 +335,7 @@ func TestGetServerByNameAndVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := service.GetServerByNameAndVersion(ctx, tt.serverName, tt.version)
+			result, err := serverService.GetServerByNameAndVersion(ctx, tt.serverName, tt.version)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -355,10 +358,11 @@ func TestStoreAndRetrieveServerReadme(t *testing.T) {
 	ctx := context.Background()
 	testDB := internaldb.NewTestServiceDB(t)
 	svc := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := svc.Server()
 
 	serverName := "com.example/readme-server"
 
-	_, err := svc.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Readme server v1",
@@ -368,9 +372,9 @@ func TestStoreAndRetrieveServerReadme(t *testing.T) {
 
 	firstReadme := []byte("# Version 1\nHello world\n")
 	ctxWithAuth := internaldb.WithTestSession(ctx)
-	require.NoError(t, svc.StoreServerReadme(ctxWithAuth, serverName, "1.0.0", firstReadme, ""))
+	require.NoError(t, serverService.StoreServerReadme(ctxWithAuth, serverName, "1.0.0", firstReadme, ""))
 
-	readmeV1, err := svc.GetServerReadmeByVersion(ctx, serverName, "1.0.0")
+	readmeV1, err := serverService.GetServerReadmeByVersion(ctx, serverName, "1.0.0")
 	require.NoError(t, err)
 	require.NotNil(t, readmeV1)
 	assert.Equal(t, "1.0.0", readmeV1.Version)
@@ -379,13 +383,13 @@ func TestStoreAndRetrieveServerReadme(t *testing.T) {
 	assert.Equal(t, string(firstReadme), string(readmeV1.Content))
 	assert.NotEmpty(t, readmeV1.SHA256)
 
-	latest, err := svc.GetServerReadmeLatest(ctx, serverName)
+	latest, err := serverService.GetServerReadmeLatest(ctx, serverName)
 	require.NoError(t, err)
 	require.NotNil(t, latest)
 	assert.Equal(t, "1.0.0", latest.Version)
 	assert.Equal(t, string(firstReadme), string(latest.Content))
 
-	_, err = svc.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Readme server v2",
@@ -394,15 +398,15 @@ func TestStoreAndRetrieveServerReadme(t *testing.T) {
 	require.NoError(t, err)
 
 	secondReadme := []byte("# Version 2\nUpdated\n")
-	require.NoError(t, svc.StoreServerReadme(ctxWithAuth, serverName, "2.0.0", secondReadme, "text/markdown"))
+	require.NoError(t, serverService.StoreServerReadme(ctxWithAuth, serverName, "2.0.0", secondReadme, "text/markdown"))
 
-	latest, err = svc.GetServerReadmeLatest(ctx, serverName)
+	latest, err = serverService.GetServerReadmeLatest(ctx, serverName)
 	require.NoError(t, err)
 	require.NotNil(t, latest)
 	assert.Equal(t, "2.0.0", latest.Version)
 	assert.Equal(t, string(secondReadme), string(latest.Content))
 
-	readmeV1Again, err := svc.GetServerReadmeByVersion(ctx, serverName, "1.0.0")
+	readmeV1Again, err := serverService.GetServerReadmeByVersion(ctx, serverName, "1.0.0")
 	require.NoError(t, err)
 	assert.Equal(t, string(firstReadme), string(readmeV1Again.Content))
 }
@@ -411,10 +415,11 @@ func TestGetServerReadmeMissing(t *testing.T) {
 	ctx := context.Background()
 	testDB := internaldb.NewTestServiceDB(t)
 	svc := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := svc.Server()
 
 	serverName := "com.example/missing-readme"
 
-	_, err := svc.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Server without readme",
@@ -422,11 +427,11 @@ func TestGetServerReadmeMissing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = svc.GetServerReadmeByVersion(ctx, serverName, "1.0.0")
+	_, err = serverService.GetServerReadmeByVersion(ctx, serverName, "1.0.0")
 	require.Error(t, err)
 	assert.Equal(t, database.ErrNotFound, err)
 
-	_, err = svc.GetServerReadmeLatest(ctx, serverName)
+	_, err = serverService.GetServerReadmeLatest(ctx, serverName)
 	require.Error(t, err)
 	assert.Equal(t, database.ErrNotFound, err)
 }
@@ -435,11 +440,12 @@ func TestGetAllVersionsByServerName(t *testing.T) {
 	ctx := context.Background()
 	testDB := internaldb.NewTestServiceDB(t)
 	service := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := service.Server()
 
 	serverName := "com.example/multi-version-server"
 
 	// Create multiple versions of the same server
-	_, err := service.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Multi-version server v1",
@@ -447,7 +453,7 @@ func TestGetAllVersionsByServerName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Multi-version server v2",
@@ -455,7 +461,7 @@ func TestGetAllVersionsByServerName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Multi-version server v2.1",
@@ -508,7 +514,7 @@ func TestGetAllVersionsByServerName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := service.GetAllVersionsByServerName(ctx, tt.serverName)
+			result, err := serverService.GetAllVersionsByServerName(ctx, tt.serverName)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -531,6 +537,7 @@ func TestCreateServerConcurrentVersionsNoRace(t *testing.T) {
 	ctx := context.Background()
 	testDB := internaldb.NewTestServiceDB(t)
 	service := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := service.Server()
 
 	const concurrency = 100
 	serverName := "com.example/test-concurrent"
@@ -542,7 +549,7 @@ func TestCreateServerConcurrentVersionsNoRace(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			result, err := service.CreateServer(ctx, &apiv0.ServerJSON{
+			result, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 				Schema:      model.CurrentSchemaURL,
 				Name:        serverName,
 				Description: fmt.Sprintf("Version %d", idx),
@@ -567,7 +574,7 @@ func TestCreateServerConcurrentVersionsNoRace(t *testing.T) {
 	}
 
 	// Query database to check the final state after all creates complete
-	allVersions, err := service.GetAllVersionsByServerName(ctx, serverName)
+	allVersions, err := serverService.GetAllVersionsByServerName(ctx, serverName)
 	require.NoError(t, err, "failed to get all versions")
 
 	latestCount := 0
@@ -587,12 +594,13 @@ func TestUpdateServer(t *testing.T) {
 	ctx := context.Background()
 	testDB := internaldb.NewTestServiceDB(t)
 	service := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := service.Server()
 
 	serverName := "com.example/update-test-server"
 	version := "1.0.0"
 
 	// Create initial server
-	_, err := service.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Original description",
@@ -671,7 +679,7 @@ func TestUpdateServer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctxWithAuth := internaldb.WithTestSession(ctx)
-			result, err := service.UpdateServer(ctxWithAuth, tt.serverName, tt.version, tt.updatedServer, tt.newStatus)
+			result, err := serverService.UpdateServer(ctxWithAuth, tt.serverName, tt.version, tt.updatedServer, tt.newStatus)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -695,6 +703,7 @@ func TestUpdateServer_SkipValidationForDeletedServers(t *testing.T) {
 	testDB := internaldb.NewTestServiceDB(t)
 	// Enable registry validation to test that it gets skipped for deleted servers
 	service := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: true}, nil)
+	serverService := service.Server()
 
 	serverName := "com.example/validation-skip-test"
 	version := "1.0.0"
@@ -718,18 +727,18 @@ func TestUpdateServer_SkipValidationForDeletedServers(t *testing.T) {
 	// Create initial server (validation disabled for creation in this test)
 	originalConfig := service.Config().EnableRegistryValidation
 	service.Config().EnableRegistryValidation = false
-	_, err := service.CreateServer(ctx, invalidServer)
+	_, err := serverService.CreateServer(ctx, invalidServer)
 	require.NoError(t, err, "failed to create server with validation disabled")
 	service.Config().EnableRegistryValidation = originalConfig
 
 	// First, set server to deleted status
 	ctxWithAuth := internaldb.WithTestSession(ctx)
 	deletedStatus := string(model.StatusDeleted)
-	_, err = service.UpdateServer(ctxWithAuth, serverName, version, invalidServer, &deletedStatus)
+	_, err = serverService.UpdateServer(ctxWithAuth, serverName, version, invalidServer, &deletedStatus)
 	require.NoError(t, err, "should be able to set server to deleted (validation should be skipped)")
 
 	// Verify server is now deleted
-	updatedServer, err := service.GetServerByNameAndVersion(ctx, serverName, version)
+	updatedServer, err := serverService.GetServerByNameAndVersion(ctx, serverName, version)
 	require.NoError(t, err)
 	assert.Equal(t, model.StatusDeleted, updatedServer.Meta.Official.Status)
 
@@ -750,7 +759,7 @@ func TestUpdateServer_SkipValidationForDeletedServers(t *testing.T) {
 	}
 
 	// This should succeed despite invalid packages because server is deleted
-	result, err := service.UpdateServer(ctxWithAuth, serverName, version, updatedInvalidServer, nil)
+	result, err := serverService.UpdateServer(ctxWithAuth, serverName, version, updatedInvalidServer, nil)
 	require.NoError(t, err, "updating deleted server should skip registry validation")
 	assert.NotNil(t, result)
 	assert.Equal(t, "Updated description for deleted server", result.Server.Description)
@@ -774,13 +783,13 @@ func TestUpdateServer_SkipValidationForDeletedServers(t *testing.T) {
 
 	// Create active server (with validation disabled)
 	service.Config().EnableRegistryValidation = false
-	_, err = service.CreateServer(ctx, activeServer)
+	_, err = serverService.CreateServer(ctx, activeServer)
 	require.NoError(t, err)
 	service.Config().EnableRegistryValidation = originalConfig
 
 	// Update server and set to deleted in same operation - should skip validation
 	newDeletedStatus := string(model.StatusDeleted)
-	result2, err := service.UpdateServer(ctxWithAuth, "com.example/being-deleted-test", "1.0.0", activeServer, &newDeletedStatus)
+	result2, err := serverService.UpdateServer(ctxWithAuth, "com.example/being-deleted-test", "1.0.0", activeServer, &newDeletedStatus)
 	require.NoError(t, err, "updating server being set to deleted should skip registry validation")
 	assert.NotNil(t, result2)
 	assert.Equal(t, model.StatusDeleted, result2.Meta.Official.Status)
@@ -790,6 +799,7 @@ func TestListServers(t *testing.T) {
 	ctx := context.Background()
 	testDB := internaldb.NewTestServiceDB(t)
 	service := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := service.Server()
 
 	// Create test servers
 	testServers := []struct {
@@ -803,7 +813,7 @@ func TestListServers(t *testing.T) {
 	}
 
 	for _, server := range testServers {
-		_, err := service.CreateServer(ctx, &apiv0.ServerJSON{
+		_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 			Schema:      model.CurrentSchemaURL,
 			Name:        server.name,
 			Description: server.description,
@@ -860,7 +870,7 @@ func TestListServers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results, nextCursor, err := service.ListServers(ctx, tt.filter, tt.cursor, tt.limit)
+			results, nextCursor, err := serverService.ListServers(ctx, tt.filter, tt.cursor, tt.limit)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -882,6 +892,7 @@ func TestVersionComparison(t *testing.T) {
 	ctx := context.Background()
 	testDB := internaldb.NewTestServiceDB(t)
 	service := NewRegistryService(testDB, &config.Config{EnableRegistryValidation: false}, nil)
+	serverService := service.Server()
 
 	serverName := "com.example/version-comparison-server"
 
@@ -901,7 +912,7 @@ func TestVersionComparison(t *testing.T) {
 		if v.delay > 0 {
 			time.Sleep(v.delay)
 		}
-		_, err := service.CreateServer(ctx, &apiv0.ServerJSON{
+		_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
 			Schema:      model.CurrentSchemaURL,
 			Name:        serverName,
 			Description: v.description,
@@ -911,14 +922,14 @@ func TestVersionComparison(t *testing.T) {
 	}
 
 	// Get the latest version - should be 2.1.0 based on semantic versioning
-	latest, err := service.GetServerByName(ctx, serverName)
+	latest, err := serverService.GetServerByName(ctx, serverName)
 	require.NoError(t, err)
 
 	assert.Equal(t, "2.1.0", latest.Server.Version, "Latest version should be 2.1.0")
 	assert.True(t, latest.Meta.Official.IsLatest)
 
 	// Verify only one version is marked as latest
-	allVersions, err := service.GetAllVersionsByServerName(ctx, serverName)
+	allVersions, err := serverService.GetAllVersionsByServerName(ctx, serverName)
 	require.NoError(t, err)
 
 	latestCount := 0
