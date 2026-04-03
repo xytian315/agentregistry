@@ -36,16 +36,6 @@ type DeploymentByIDInput struct {
 	ID string `path:"id" json:"id" doc:"Deployment ID" example:"6b7ce4ab-ec3d-4789-95f4-8be5fac2e6be"`
 }
 
-// DeploymentsListInput represents query parameters for listing deployments
-type DeploymentsListInput struct {
-	Platform     string `query:"platform" json:"platform,omitempty" doc:"Filter by provider platform type (matches registered provider platforms)" example:"local"`
-	ProviderID   string `query:"providerId" json:"providerId,omitempty" doc:"Filter by provider instance ID"`
-	ResourceType string `query:"resourceType" json:"resourceType,omitempty" doc:"Filter by resource type (mcp, agent)" example:"mcp" enum:"mcp,agent"`
-	Status       string `query:"status" json:"status,omitempty" doc:"Filter by deployment status"`
-	Origin       string `query:"origin" json:"origin,omitempty" doc:"Filter by deployment origin (managed, discovered)" enum:"managed,discovered"`
-	ResourceName string `query:"resourceName" json:"resourceName,omitempty" doc:"Case-insensitive substring filter on resource name"`
-}
-
 // DeploymentService defines the deployment operations consumed by deployment-aware HTTP handlers.
 type DeploymentService interface {
 	GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
@@ -111,7 +101,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, providerSvc v0p
 		Summary:     "List deployed resources",
 		Description: "Retrieve all deployed resources (MCP servers, agents) with their configurations. Optionally filter by resource type.",
 		Tags:        []string{"deployments"},
-	}, func(ctx context.Context, input *DeploymentsListInput) (*DeploymentsListResponse, error) {
+	}, func(ctx context.Context, input *apitypes.DeploymentsListInput) (*DeploymentsListResponse, error) {
 		filter := &models.DeploymentFilter{}
 		if input.Platform != "" {
 			p := normalizePlatform(input.Platform)

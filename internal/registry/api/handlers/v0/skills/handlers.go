@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agentregistry-dev/agentregistry/internal/registry/api/apitypes"
 	skillmodels "github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
@@ -16,15 +17,6 @@ import (
 )
 
 const errRecordNotFound = "record not found"
-
-// ListSkillsInput represents the input for listing skills
-type ListSkillsInput struct {
-	Cursor       string `query:"cursor" json:"cursor,omitempty" doc:"Pagination cursor" required:"false" example:"skill-cursor-123"`
-	Limit        int    `query:"limit" json:"limit,omitempty" doc:"Number of items per page" default:"30" minimum:"1" maximum:"100" example:"50"`
-	UpdatedSince string `query:"updated_since" json:"updated_since,omitempty" doc:"Filter skills updated since timestamp (RFC3339 datetime)" required:"false" example:"2025-08-07T13:15:04.280Z"`
-	Search       string `query:"search" json:"search,omitempty" doc:"Search skills by name (substring match)" required:"false" example:"filesystem"`
-	Version      string `query:"version" json:"version,omitempty" doc:"Filter by version ('latest' for latest version, or an exact version like '1.2.3')" required:"false" example:"latest"`
-}
 
 // SkillDetailInput represents the input for getting skill details
 type SkillDetailInput struct {
@@ -67,7 +59,7 @@ func RegisterSkillsEndpoints(api huma.API, pathPrefix string, skillSvc SkillServ
 		Summary:     "List Agentic skills",
 		Description: "Get a paginated list of Agentic skills from the registry",
 		Tags:        tags,
-	}, func(ctx context.Context, input *ListSkillsInput) (*types.Response[skillmodels.SkillListResponse], error) {
+	}, func(ctx context.Context, input *apitypes.ListSkillsInput) (*types.Response[skillmodels.SkillListResponse], error) {
 		// Note: Authz filtering for list operations is handled at the database layer.
 
 		// Build filter

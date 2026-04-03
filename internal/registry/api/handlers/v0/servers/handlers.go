@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agentregistry-dev/agentregistry/internal/registry/api/apitypes"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/deploymentmeta"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
@@ -57,17 +58,6 @@ func normalizeServerResponse(src *apiv0.ServerResponse) models.ServerResponse {
 		Server: server,
 		Meta:   meta,
 	}
-}
-
-// ListServersInput represents the input for listing servers
-type ListServersInput struct {
-	Cursor                 string  `query:"cursor" json:"cursor,omitempty" doc:"Pagination cursor" required:"false" example:"server-cursor-123"`
-	Limit                  int     `query:"limit" json:"limit,omitempty" doc:"Number of items per page" default:"30" minimum:"1" maximum:"100" example:"50"`
-	UpdatedSince           string  `query:"updated_since" json:"updated_since,omitempty" doc:"Filter servers updated since timestamp (RFC3339 datetime)" required:"false" example:"2025-08-07T13:15:04.280Z"`
-	Search                 string  `query:"search" json:"search,omitempty" doc:"Search servers by name (substring match)" required:"false" example:"filesystem"`
-	Version                string  `query:"version" json:"version,omitempty" doc:"Filter by version ('latest' for latest version, or an exact version like '1.2.3')" required:"false" example:"latest"`
-	Semantic               bool    `query:"semantic_search" json:"semantic_search,omitempty" doc:"Use semantic search for the search term (hybrid with substring filter when search is set)" default:"false"`
-	SemanticMatchThreshold float64 `query:"semantic_threshold" json:"semantic_threshold,omitempty" doc:"Optional maximum distance for semantic matches (cosine distance)" required:"false"`
 }
 
 // ServerDetailInput represents the input for getting server details
@@ -158,7 +148,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc ServerS
 		Summary:     "List MCP servers",
 		Description: "Get a paginated list of MCP servers from the registry",
 		Tags:        tags,
-	}, func(ctx context.Context, input *ListServersInput) (*types.Response[models.ServerListResponse], error) {
+	}, func(ctx context.Context, input *apitypes.ListServersInput) (*types.Response[models.ServerListResponse], error) {
 		filter := &database.ServerFilter{}
 
 		if input.UpdatedSince != "" {

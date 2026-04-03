@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agentregistry-dev/agentregistry/internal/registry/api/apitypes"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/deploymentmeta"
 	agentmodels "github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
@@ -17,17 +18,6 @@ import (
 )
 
 const errRecordNotFound = "record not found"
-
-// ListAgentsInput represents the input for listing agents
-type ListAgentsInput struct {
-	Cursor                 string  `query:"cursor" json:"cursor,omitempty" doc:"Pagination cursor" required:"false" example:"agent-cursor-123"`
-	Limit                  int     `query:"limit" json:"limit,omitempty" doc:"Number of items per page" default:"30" minimum:"1" maximum:"100" example:"50"`
-	UpdatedSince           string  `query:"updated_since" json:"updated_since,omitempty" doc:"Filter agents updated since timestamp (RFC3339 datetime)" required:"false" example:"2025-08-07T13:15:04.280Z"`
-	Search                 string  `query:"search" json:"search,omitempty" doc:"Search agents by name (substring match)" required:"false" example:"filesystem"`
-	Version                string  `query:"version" json:"version,omitempty" doc:"Filter by version ('latest' for latest version, or an exact version like '1.2.3')" required:"false" example:"latest"`
-	Semantic               bool    `query:"semantic_search" json:"semantic_search,omitempty" doc:"Use semantic search for the search term"`
-	SemanticMatchThreshold float64 `query:"semantic_threshold" json:"semantic_threshold,omitempty" doc:"Optional maximum cosine distance when semantic_search is enabled" required:"false"`
-}
 
 // AgentDetailInput represents the input for getting agent details
 type AgentDetailInput struct {
@@ -70,7 +60,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc AgentServ
 		Summary:     "List Agentic agents",
 		Description: "Get a paginated list of Agentic agents from the registry",
 		Tags:        tags,
-	}, func(ctx context.Context, input *ListAgentsInput) (*types.Response[agentmodels.AgentListResponse], error) {
+	}, func(ctx context.Context, input *apitypes.ListAgentsInput) (*types.Response[agentmodels.AgentListResponse], error) {
 		// Build filter
 		filter := &database.AgentFilter{}
 
