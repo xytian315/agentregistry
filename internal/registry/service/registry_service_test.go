@@ -12,6 +12,7 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
 	internaldb "github.com/agentregistry-dev/agentregistry/internal/registry/database"
 	api "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
+	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
@@ -1223,14 +1224,14 @@ func stringPtr(s string) *string {
 }
 
 func TestIsUnsupportedDeploymentPlatformError(t *testing.T) {
-	baseErr := &UnsupportedDeploymentPlatformError{Platform: "acme"}
+	baseErr := &deploymentsvc.UnsupportedDeploymentPlatformError{Platform: "acme"}
 	wrappedErr := fmt.Errorf("wrapped: %w", baseErr)
 
-	assert.True(t, IsUnsupportedDeploymentPlatformError(baseErr))
-	assert.True(t, IsUnsupportedDeploymentPlatformError(wrappedErr))
+	assert.True(t, deploymentsvc.IsUnsupportedDeploymentPlatformError(baseErr))
+	assert.True(t, deploymentsvc.IsUnsupportedDeploymentPlatformError(wrappedErr))
 	require.ErrorIs(t, baseErr, database.ErrInvalidInput)
 	require.ErrorIs(t, wrappedErr, database.ErrInvalidInput)
-	assert.False(t, IsUnsupportedDeploymentPlatformError(database.ErrInvalidInput))
+	assert.False(t, deploymentsvc.IsUnsupportedDeploymentPlatformError(database.ErrInvalidInput))
 }
 
 func TestResolveDeploymentAdapter_UnsupportedPlatformReturnsTypedError(t *testing.T) {
@@ -1240,7 +1241,7 @@ func TestResolveDeploymentAdapter_UnsupportedPlatformReturnsTypedError(t *testin
 
 	_, err := svc.resolveDeploymentAdapter("unknown-platform")
 	require.Error(t, err)
-	assert.True(t, IsUnsupportedDeploymentPlatformError(err))
+	assert.True(t, deploymentsvc.IsUnsupportedDeploymentPlatformError(err))
 	assert.ErrorIs(t, err, database.ErrInvalidInput)
 }
 
@@ -1765,7 +1766,7 @@ func TestGetDeployments_ManagedOriginSkipsDiscovery(t *testing.T) {
 }
 
 func TestGetDeploymentByID_FallsBackToDiscoveredDeployments(t *testing.T) {
-	discoveredID := discoveredDeploymentID("kubernetes-default", "mcp", "io.test/external", "unknown")
+	discoveredID := deploymentsvc.DiscoveredDeploymentID("kubernetes-default", "mcp", "io.test/external", "unknown")
 	mockDB := &deploymentMockDB{
 		getDeploymentByIDFn: func(_ context.Context, _ database.Transaction, _ string) (*models.Deployment, error) {
 			return nil, database.ErrNotFound
@@ -1773,7 +1774,7 @@ func TestGetDeploymentByID_FallsBackToDiscoveredDeployments(t *testing.T) {
 		getDeploymentsFn: func(_ context.Context, _ database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 			require.NotNil(t, filter)
 			require.NotNil(t, filter.Origin)
-			require.Equal(t, originDiscovered, *filter.Origin)
+			require.Equal(t, "discovered", *filter.Origin)
 			return []*models.Deployment{}, nil
 		},
 		listProvidersFn: func(_ context.Context, _ database.Transaction, _ *string) ([]*models.Provider, error) {
@@ -1790,7 +1791,7 @@ func TestGetDeploymentByID_FallsBackToDiscoveredDeployments(t *testing.T) {
 					Version:      "unknown",
 					ResourceType: "mcp",
 					Status:       "deployed",
-					Origin:       originDiscovered,
+					Origin:       "discovered",
 					ProviderID:   providerID,
 				},
 			}, nil
@@ -1808,7 +1809,7 @@ func TestGetDeploymentByID_FallsBackToDiscoveredDeployments(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, discoveredID, got.ID)
-	assert.Equal(t, originDiscovered, got.Origin)
+	assert.Equal(t, "discovered", got.Origin)
 	assert.Equal(t, "kubernetes-default", got.ProviderID)
 }
 

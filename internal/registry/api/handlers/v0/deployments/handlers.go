@@ -10,7 +10,6 @@ import (
 	handlerext "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/extensions"
 	v0providers "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/providers"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/platforms/utils"
-	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
@@ -44,7 +43,7 @@ func normalizePlatform(platform string) string {
 
 func createDeploymentHTTPError(err error) error {
 	switch {
-	case service.IsUnsupportedDeploymentPlatformError(err):
+	case deploymentsvc.IsUnsupportedDeploymentPlatformError(err):
 		return huma.Error400BadRequest("Unsupported provider or platform for deployment")
 	case errors.Is(err, database.ErrInvalidInput):
 		return huma.Error400BadRequest(err.Error())
@@ -65,7 +64,7 @@ func createDeploymentHTTPError(err error) error {
 
 func removeDeploymentHTTPError(err error) error {
 	switch {
-	case service.IsUnsupportedDeploymentPlatformError(err):
+	case deploymentsvc.IsUnsupportedDeploymentPlatformError(err):
 		return huma.Error400BadRequest("Unsupported provider or platform for deployment")
 	case errors.Is(err, database.ErrInvalidInput):
 		return huma.Error400BadRequest("Invalid deployment removal request")

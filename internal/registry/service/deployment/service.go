@@ -23,6 +23,14 @@ const (
 	originDiscovered  = "discovered"
 )
 
+// UnsupportedDeploymentPlatformError reports that no deployment adapter exists for a provider platform.
+type UnsupportedDeploymentPlatformError = deployutil.UnsupportedDeploymentPlatformError
+
+// IsUnsupportedDeploymentPlatformError reports whether err wraps an unsupported deployment platform error.
+func IsUnsupportedDeploymentPlatformError(err error) bool {
+	return deployutil.IsUnsupportedDeploymentPlatformError(err)
+}
+
 // Registry defines the deployment operations exposed to other packages.
 type Registry interface {
 	GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)

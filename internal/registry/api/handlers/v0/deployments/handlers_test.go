@@ -13,7 +13,7 @@ import (
 	v0extensions "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/extensions"
 	v0providers "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/providers"
 	platformutils "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/utils"
-	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
+	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
@@ -557,7 +557,7 @@ func TestDeleteDeployment_UnsupportedPlatformReturnsBadRequest(t *testing.T) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
 	reg.UndeployDeploymentFn = func(ctx context.Context, deployment *models.Deployment) error {
-		return &service.UnsupportedDeploymentPlatformError{Platform: "local"}
+		return &deploymentsvc.UnsupportedDeploymentPlatformError{Platform: "local"}
 	}
 
 	mux := http.NewServeMux()
