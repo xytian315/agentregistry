@@ -84,7 +84,7 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 	// entirely via AppOptions.DatabaseFactory (e.g. in-memory or custom backend) and
 	// do not want a real PostgreSQL connection. In that case DatabaseFactory is required.
 	// For normal deployments, set DATABASE_URL to a real Postgres connection string.
-	var db database.Database
+	var db database.Store
 	if cfg.DatabaseURL == "noop" { //nolint:nestif
 		if options.DatabaseFactory == nil {
 			return fmt.Errorf("DATABASE_URL=noop requires DatabaseFactory to be set in AppOptions")

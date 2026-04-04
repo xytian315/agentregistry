@@ -146,7 +146,7 @@ func WithVector() testDBOption {
 // The template database has migrations pre-applied, so each test is fast.
 // Requires PostgreSQL to be running on localhost:5432 (e.g., via docker-compose).
 // Pass WithVector() to also apply vector migrations.
-func NewTestDB(t *testing.T, opts ...testDBOption) regdb.Database {
+func NewTestDB(t *testing.T, opts ...testDBOption) regdb.Store {
 	t.Helper()
 
 	var cfg testDBConfig

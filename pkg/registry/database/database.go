@@ -219,9 +219,6 @@ type Store interface {
 	Close() error
 }
 
-// Database is retained as a compatibility alias while callers migrate to Store.
-type Database = Store
-
 var ErrStoreNotConfigured = errors.New("store is not configured")
 
 func InTransaction(ctx context.Context, store Store, fn func(context.Context, Store) error) error {
