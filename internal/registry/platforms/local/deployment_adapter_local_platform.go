@@ -14,6 +14,7 @@ import (
 
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
 	platformutils "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/utils"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	"github.com/agentregistry-dev/agentregistry/internal/utils"
 	"github.com/agentregistry-dev/agentregistry/internal/version"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
@@ -503,7 +504,7 @@ func defaultAgentPort(agent *platformtypes.Agent) uint16 {
 
 func mustAgentManifest(
 	ctx context.Context,
-	agentService agentRegistry,
+	agentService *agentsvc.Service,
 	deployment *models.Deployment,
 ) *models.AgentManifest {
 	agentResp, err := agentService.GetAgentByNameAndVersion(ctx, deployment.ServerName, deployment.Version)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	v0deployments "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/deployments"
@@ -19,6 +20,7 @@ import (
 	registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
+	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,23 +38,26 @@ type fakeDeploymentAdapter struct {
 }
 
 type fakeProviderDeploymentService struct {
-	GetProviderByIDFn      func(ctx context.Context, providerID string) (*models.Provider, error)
-	CreateDeploymentFn     func(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
-	GetDeploymentByIDFn    func(ctx context.Context, id string) (*models.Deployment, error)
-	RemoveDeploymentByIDFn func(ctx context.Context, id string) error
-	DeployServerFn         func(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
-	DeployAgentFn          func(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
-	UndeployDeploymentFn   func(ctx context.Context, deployment *models.Deployment) error
-	GetDeploymentLogsFn    func(ctx context.Context, deployment *models.Deployment) ([]string, error)
-	CancelDeploymentFn     func(ctx context.Context, deployment *models.Deployment) error
-	GetDeploymentsFn       func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	GetProviderByIDFn           func(ctx context.Context, providerID string) (*models.Provider, error)
+	GetServerByNameAndVersionFn func(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error)
+	GetAgentByNameAndVersionFn  func(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
+	CreateDeploymentRecordFn    func(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
+	GetDeploymentByIDFn         func(ctx context.Context, id string) (*models.Deployment, error)
+	RemoveDeploymentByIDFn      func(ctx context.Context, id string) error
+	UpdateDeploymentStateFn     func(ctx context.Context, id string, patch *models.DeploymentStatePatch) error
+	GetDeploymentsFn            func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	deployments                 map[string]*models.Deployment
+	nextDeploymentID           int
 }
 
 func newFakeProviderDeploymentService() *fakeProviderDeploymentService {
-	return &fakeProviderDeploymentService{}
+	return &fakeProviderDeploymentService{
+		deployments:      map[string]*models.Deployment{},
+		nextDeploymentID: 1,
+	}
 }
 
-func (f *fakeProviderDeploymentService) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
+func (f *fakeProviderDeploymentService) ListProviders(context.Context, *string) ([]*models.Provider, error) {
 	return nil, nil
 }
 
@@ -60,18 +65,21 @@ func (f *fakeProviderDeploymentService) GetProviderByID(ctx context.Context, pro
 	if f.GetProviderByIDFn != nil {
 		return f.GetProviderByIDFn(ctx, providerID)
 	}
+	if strings.TrimSpace(providerID) == "" {
+		return nil, database.ErrNotFound
+	}
+	return &models.Provider{ID: providerID, Platform: providerID}, nil
+}
+
+func (f *fakeProviderDeploymentService) CreateProvider(context.Context, *models.CreateProviderInput) (*models.Provider, error) {
 	return nil, database.ErrNotFound
 }
 
-func (f *fakeProviderDeploymentService) CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
+func (f *fakeProviderDeploymentService) UpdateProvider(context.Context, string, *models.UpdateProviderInput) (*models.Provider, error) {
 	return nil, database.ErrNotFound
 }
 
-func (f *fakeProviderDeploymentService) UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error) {
-	return nil, database.ErrNotFound
-}
-
-func (f *fakeProviderDeploymentService) DeleteProvider(ctx context.Context, providerID string) error {
+func (f *fakeProviderDeploymentService) DeleteProvider(context.Context, string) error {
 	return database.ErrNotFound
 }
 
@@ -79,67 +87,238 @@ func (f *fakeProviderDeploymentService) GetDeployments(ctx context.Context, filt
 	if f.GetDeploymentsFn != nil {
 		return f.GetDeploymentsFn(ctx, filter)
 	}
-	return nil, nil
+	deployments := make([]*models.Deployment, 0, len(f.deployments))
+	for _, deployment := range f.deployments {
+		deployments = append(deployments, deployment)
+	}
+	return deployments, nil
 }
 
 func (f *fakeProviderDeploymentService) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
 	if f.GetDeploymentByIDFn != nil {
 		return f.GetDeploymentByIDFn(ctx, id)
 	}
-	return nil, database.ErrNotFound
-}
-
-func (f *fakeProviderDeploymentService) DeployServer(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
-	if f.DeployServerFn != nil {
-		return f.DeployServerFn(ctx, serverName, version, config, preferRemote, providerID)
+	if deployment, ok := f.deployments[id]; ok {
+		return deployment, nil
 	}
 	return nil, database.ErrNotFound
 }
 
-func (f *fakeProviderDeploymentService) DeployAgent(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
-	if f.DeployAgentFn != nil {
-		return f.DeployAgentFn(ctx, agentName, version, config, preferRemote, providerID)
+func (f *fakeProviderDeploymentService) CreateDeployment(ctx context.Context, req *models.Deployment) error {
+	created := req
+	if f.CreateDeploymentRecordFn != nil {
+		var err error
+		created, err = f.CreateDeploymentRecordFn(ctx, req)
+		if err != nil {
+			return err
+		}
 	}
-	return nil, database.ErrNotFound
+	if created == nil {
+		created = req
+	}
+	stored := *created
+	if strings.TrimSpace(stored.ID) == "" {
+		stored.ID = fmt.Sprintf("dep-%d", f.nextDeploymentID)
+		f.nextDeploymentID++
+	}
+	req.ID = stored.ID
+	if stored.Env == nil {
+		stored.Env = map[string]string{}
+	}
+	f.deployments[stored.ID] = &stored
+	return nil
+}
+
+func (f *fakeProviderDeploymentService) UpdateDeploymentState(ctx context.Context, id string, patch *models.DeploymentStatePatch) error {
+	if deployment, ok := f.deployments[id]; ok {
+		if patch.Status != nil {
+			deployment.Status = *patch.Status
+		}
+		if patch.Error != nil {
+			deployment.Error = *patch.Error
+		}
+		if patch.ProviderConfig != nil {
+			deployment.ProviderConfig = *patch.ProviderConfig
+		}
+		if patch.ProviderMetadata != nil {
+			deployment.ProviderMetadata = *patch.ProviderMetadata
+		}
+	}
+	if f.UpdateDeploymentStateFn != nil {
+		return f.UpdateDeploymentStateFn(ctx, id, patch)
+	}
+	if _, ok := f.deployments[id]; !ok {
+		return database.ErrNotFound
+	}
+	return nil
 }
 
 func (f *fakeProviderDeploymentService) RemoveDeploymentByID(ctx context.Context, id string) error {
 	if f.RemoveDeploymentByIDFn != nil {
 		return f.RemoveDeploymentByIDFn(ctx, id)
 	}
-	return database.ErrNotFound
-}
-
-func (f *fakeProviderDeploymentService) CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
-	if f.CreateDeploymentFn != nil {
-		return f.CreateDeploymentFn(ctx, req)
-	}
-	return nil, database.ErrNotFound
-}
-
-func (f *fakeProviderDeploymentService) UndeployDeployment(ctx context.Context, deployment *models.Deployment) error {
-	if f.UndeployDeploymentFn != nil {
-		return f.UndeployDeploymentFn(ctx, deployment)
-	}
-	return database.ErrNotFound
-}
-
-func (f *fakeProviderDeploymentService) GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
-	if f.GetDeploymentLogsFn != nil {
-		return f.GetDeploymentLogsFn(ctx, deployment)
-	}
-	return nil, database.ErrNotFound
-}
-
-func (f *fakeProviderDeploymentService) CancelDeployment(ctx context.Context, deployment *models.Deployment) error {
-	if f.CancelDeploymentFn != nil {
-		return f.CancelDeploymentFn(ctx, deployment)
-	}
-	return database.ErrNotFound
-}
-
-func (f *fakeProviderDeploymentService) ReconcileAll(ctx context.Context) error {
+	delete(f.deployments, id)
 	return nil
+}
+
+func (f *fakeProviderDeploymentService) DeleteServer(context.Context, string, string) error {
+	return nil
+}
+
+func (f *fakeProviderDeploymentService) CreateServer(context.Context, *apiv0.ServerJSON, *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (f *fakeProviderDeploymentService) UpdateServer(context.Context, string, string, *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (f *fakeProviderDeploymentService) SetServerStatus(context.Context, string, string, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (f *fakeProviderDeploymentService) ListServers(context.Context, *database.ServerFilter, string, int) ([]*apiv0.ServerResponse, string, error) {
+	return nil, "", nil
+}
+
+func (f *fakeProviderDeploymentService) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return f.GetServerByNameAndVersion(ctx, serverName, "latest")
+}
+
+func (f *fakeProviderDeploymentService) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	if f.GetServerByNameAndVersionFn != nil {
+		return f.GetServerByNameAndVersionFn(ctx, serverName, version)
+	}
+	return &apiv0.ServerResponse{Server: apiv0.ServerJSON{Name: serverName, Version: version}}, nil
+}
+
+func (f *fakeProviderDeploymentService) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	server, err := f.GetServerByName(ctx, serverName)
+	if err != nil {
+		return nil, err
+	}
+	return []*apiv0.ServerResponse{server}, nil
+}
+
+func (f *fakeProviderDeploymentService) GetCurrentLatestVersion(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return f.GetServerByName(ctx, serverName)
+}
+
+func (f *fakeProviderDeploymentService) CountServerVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (f *fakeProviderDeploymentService) CheckVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (f *fakeProviderDeploymentService) UnmarkAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (f *fakeProviderDeploymentService) AcquireServerCreateLock(context.Context, string) error {
+	return nil
+}
+
+func (f *fakeProviderDeploymentService) SetServerEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (f *fakeProviderDeploymentService) GetServerEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) UpsertServerReadme(context.Context, *database.ServerReadme) error {
+	return nil
+}
+
+func (f *fakeProviderDeploymentService) GetServerReadme(context.Context, string, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) GetLatestServerReadme(context.Context, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+func (f *fakeProviderDeploymentService) CreateAgent(context.Context, *models.AgentJSON, *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (f *fakeProviderDeploymentService) UpdateAgent(context.Context, string, string, *models.AgentJSON) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (f *fakeProviderDeploymentService) SetAgentStatus(context.Context, string, string, string) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (f *fakeProviderDeploymentService) ListAgents(context.Context, *database.AgentFilter, string, int) ([]*models.AgentResponse, string, error) {
+	return nil, "", nil
+}
+
+func (f *fakeProviderDeploymentService) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return f.GetAgentByNameAndVersion(ctx, agentName, "latest")
+}
+
+func (f *fakeProviderDeploymentService) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	if f.GetAgentByNameAndVersionFn != nil {
+		return f.GetAgentByNameAndVersionFn(ctx, agentName, version)
+	}
+	return &models.AgentResponse{Agent: models.AgentJSON{AgentManifest: models.AgentManifest{Name: agentName}, Version: version}}, nil
+}
+
+func (f *fakeProviderDeploymentService) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+	agent, err := f.GetAgentByName(ctx, agentName)
+	if err != nil {
+		return nil, err
+	}
+	return []*models.AgentResponse{agent}, nil
+}
+
+func (f *fakeProviderDeploymentService) GetCurrentLatestAgentVersion(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return f.GetAgentByName(ctx, agentName)
+}
+
+func (f *fakeProviderDeploymentService) CountAgentVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (f *fakeProviderDeploymentService) CheckAgentVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (f *fakeProviderDeploymentService) UnmarkAgentAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (f *fakeProviderDeploymentService) DeleteAgent(context.Context, string, string) error {
+	return nil
+}
+
+func (f *fakeProviderDeploymentService) SetAgentEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (f *fakeProviderDeploymentService) GetAgentEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+func newTestDeploymentService(store *fakeProviderDeploymentService, adapters map[string]registrytypes.DeploymentPlatformAdapter) *deploymentsvc.Service {
+	return deploymentsvc.New(deploymentsvc.Dependencies{
+		Providers:          store,
+		Servers:            store,
+		Agents:             store,
+		Deployments:        store,
+		DeploymentAdapters: adapters,
+	})
+}
+
+func registerDeploymentTestEndpoints(mux *http.ServeMux, store *fakeProviderDeploymentService, adapters map[string]registrytypes.DeploymentPlatformAdapter) {
+	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
+	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", store, newTestDeploymentService(store, adapters), v0extensions.PlatformExtensions{
+		ProviderPlatforms:   v0providers.DefaultProviderPlatformAdapters(store),
+		DeploymentPlatforms: adapters,
+	})
 }
 
 func (f *fakeDeploymentAdapter) Platform() string { return "local" }
@@ -162,31 +341,9 @@ func TestCreateDeployment_PassesEnvAndProviderConfigSeparately(t *testing.T) {
 	}
 
 	adapter := &fakeDeploymentAdapter{}
-	reg.CreateDeploymentFn = func(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
-		if _, err := adapter.Deploy(ctx, req); err != nil {
-			return nil, err
-		}
-		return &models.Deployment{
-			ID:             "adapter-dep-1",
-			ServerName:     req.ServerName,
-			Version:        req.Version,
-			ResourceType:   req.ResourceType,
-			ProviderID:     req.ProviderID,
-			Status:         "deployed",
-			Origin:         "managed",
-			Env:            req.Env,
-			ProviderConfig: req.ProviderConfig,
-		}, nil
-	}
 
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	body := map[string]any{
 		"serverName":   "io.github.user/weather",
@@ -220,17 +377,9 @@ func TestCreateDeployment_PassesEnvAndProviderConfigSeparately(t *testing.T) {
 
 func TestCreateDeployment_MissingProviderIDReturnsBadRequest(t *testing.T) {
 	reg := newFakeProviderDeploymentService()
-	reg.CreateDeploymentFn = func(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
-		t.Fatalf("expected providerId validation failure before service call")
-		return nil, nil
-	}
 
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms:   v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{"local": &fakeDeploymentAdapter{}},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": &fakeDeploymentAdapter{}})
 
 	body := map[string]any{
 		"serverName":   "io.github.user/weather",
@@ -285,14 +434,8 @@ func TestDeleteDeployment_DiscoveredReturnsConflict(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
 	adapter := &fakeDeploymentAdapter{undeployErr: database.ErrInvalidInput}
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	req := httptest.NewRequest(http.MethodDelete, "/v0/deployments/dep-discovered-1", nil)
 	w := httptest.NewRecorder()
@@ -307,36 +450,11 @@ func TestCreateDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
-	reg.DeployServerFn = func(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
-		t.Fatalf("expected adapter dispatch, but DeployServer was called")
-		return nil, nil
-	}
 
 	adapter := &fakeDeploymentAdapter{}
-	reg.CreateDeploymentFn = func(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
-		if _, err := adapter.Deploy(ctx, req); err != nil {
-			return nil, err
-		}
-		return &models.Deployment{
-			ID:           "adapter-dep-1",
-			ServerName:   req.ServerName,
-			Version:      req.Version,
-			ResourceType: req.ResourceType,
-			ProviderID:   req.ProviderID,
-			Status:       "deployed",
-			Origin:       "managed",
-			Env:          req.Env,
-		}, nil
-	}
 
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	body := map[string]any{
 		"serverName":   "io.github.user/weather",
@@ -356,7 +474,7 @@ func TestCreateDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	var got models.Deployment
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
-	assert.Equal(t, "adapter-dep-1", got.ID)
+	assert.NotEmpty(t, got.ID)
 	assert.Equal(t, "io.github.user/weather", got.ServerName)
 }
 
@@ -366,30 +484,9 @@ func TestCreateDeployment_InvalidInputFromAdapterReturnsBadRequest(t *testing.T)
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
 	adapter := &fakeDeploymentAdapter{deployErr: database.ErrInvalidInput}
-	reg.CreateDeploymentFn = func(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
-		if _, err := adapter.Deploy(ctx, req); err != nil {
-			return nil, err
-		}
-		return &models.Deployment{
-			ID:           "adapter-dep-1",
-			ServerName:   req.ServerName,
-			Version:      req.Version,
-			ResourceType: req.ResourceType,
-			ProviderID:   req.ProviderID,
-			Status:       "deployed",
-			Origin:       "managed",
-			Env:          req.Env,
-		}, nil
-	}
 
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	body := map[string]any{
 		"serverName":   "io.github.user/weather",
@@ -413,29 +510,9 @@ func TestCreateDeployment_AllowsMultipleDeploymentsForSameArtifact(t *testing.T)
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
-	createCount := 0
-	reg.CreateDeploymentFn = func(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
-		createCount++
-		return &models.Deployment{
-			ID:           fmt.Sprintf("adapter-dep-%d", createCount),
-			ServerName:   req.ServerName,
-			Version:      req.Version,
-			ResourceType: req.ResourceType,
-			ProviderID:   req.ProviderID,
-			Status:       "deployed",
-			Origin:       "managed",
-			Env:          req.Env,
-		}, nil
-	}
 
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": &fakeDeploymentAdapter{},
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": &fakeDeploymentAdapter{}})
 
 	body := map[string]any{
 		"serverName":   "io.github.user/weather",
@@ -473,19 +550,13 @@ func TestCreateDeployment_NotFoundIncludesResourceName(t *testing.T) {
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
-	reg.CreateDeploymentFn = func(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
-		return nil, fmt.Errorf("server my-cool-server not found in registry: %w", database.ErrNotFound)
+	reg.GetServerByNameAndVersionFn = func(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+		return nil, database.ErrNotFound
 	}
 
 	adapter := &fakeDeploymentAdapter{}
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("test", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	body := map[string]any{
 		"serverName":   "my-cool-server",
@@ -517,23 +588,10 @@ func TestDeleteDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
-	reg.RemoveDeploymentByIDFn = func(ctx context.Context, id string) error {
-		t.Fatalf("expected adapter undeploy, but RemoveDeploymentByID was called")
-		return nil
-	}
 
 	adapter := &fakeDeploymentAdapter{}
-	reg.UndeployDeploymentFn = func(ctx context.Context, deployment *models.Deployment) error {
-		return adapter.Undeploy(ctx, deployment)
-	}
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	req := httptest.NewRequest(http.MethodDelete, "/v0/deployments/dep-1", nil)
 	w := httptest.NewRecorder()
@@ -556,18 +614,9 @@ func TestDeleteDeployment_UnsupportedPlatformReturnsBadRequest(t *testing.T) {
 	reg.GetProviderByIDFn = func(ctx context.Context, providerID string) (*models.Provider, error) {
 		return &models.Provider{ID: providerID, Platform: "local"}, nil
 	}
-	reg.UndeployDeploymentFn = func(ctx context.Context, deployment *models.Deployment) error {
-		return &deploymentsvc.UnsupportedDeploymentPlatformError{Platform: "local"}
-	}
 
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": &fakeDeploymentAdapter{},
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/v0/deployments/dep-unsupported", nil)
 	w := httptest.NewRecorder()
@@ -591,17 +640,8 @@ func TestGetDeploymentLogs_UsesAdapterWhenRegistered(t *testing.T) {
 	}
 
 	adapter := &fakeDeploymentAdapter{}
-	reg.GetDeploymentLogsFn = func(ctx context.Context, deployment *models.Deployment) ([]string, error) {
-		return adapter.GetLogs(ctx, deployment)
-	}
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	req := httptest.NewRequest(http.MethodGet, "/v0/deployments/dep-2/logs", nil)
 	w := httptest.NewRecorder()
@@ -631,17 +671,8 @@ func TestGetDeploymentLogs_NotFoundFromAdapterReturnsNotFound(t *testing.T) {
 	}
 
 	adapter := &fakeDeploymentAdapter{getLogsErr: database.ErrNotFound}
-	reg.GetDeploymentLogsFn = func(ctx context.Context, deployment *models.Deployment) ([]string, error) {
-		return adapter.GetLogs(ctx, deployment)
-	}
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	req := httptest.NewRequest(http.MethodGet, "/v0/deployments/dep-2/logs", nil)
 	w := httptest.NewRecorder()
@@ -665,17 +696,8 @@ func TestGetDeploymentLogs_NotSupportedFromAdapterReturnsNotImplemented(t *testi
 	}
 
 	adapter := &fakeDeploymentAdapter{getLogsErr: platformutils.ErrDeploymentNotSupported}
-	reg.GetDeploymentLogsFn = func(ctx context.Context, deployment *models.Deployment) ([]string, error) {
-		return adapter.GetLogs(ctx, deployment)
-	}
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	req := httptest.NewRequest(http.MethodGet, "/v0/deployments/dep-2/logs", nil)
 	w := httptest.NewRecorder()
@@ -699,17 +721,8 @@ func TestCancelDeployment_UsesAdapterWhenRegistered(t *testing.T) {
 	}
 
 	adapter := &fakeDeploymentAdapter{}
-	reg.CancelDeploymentFn = func(ctx context.Context, deployment *models.Deployment) error {
-		return adapter.Cancel(ctx, deployment)
-	}
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	req := httptest.NewRequest(http.MethodPost, "/v0/deployments/dep-3/cancel", nil)
 	w := httptest.NewRecorder()
@@ -733,17 +746,8 @@ func TestCancelDeployment_InvalidInputFromAdapterReturnsBadRequest(t *testing.T)
 	}
 
 	adapter := &fakeDeploymentAdapter{cancelErr: database.ErrInvalidInput}
-	reg.CancelDeploymentFn = func(ctx context.Context, deployment *models.Deployment) error {
-		return adapter.Cancel(ctx, deployment)
-	}
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	req := httptest.NewRequest(http.MethodPost, "/v0/deployments/dep-3/cancel", nil)
 	w := httptest.NewRecorder()
@@ -767,17 +771,8 @@ func TestCancelDeployment_NotSupportedFromAdapterReturnsNotImplemented(t *testin
 	}
 
 	adapter := &fakeDeploymentAdapter{cancelErr: platformutils.ErrDeploymentNotSupported}
-	reg.CancelDeploymentFn = func(ctx context.Context, deployment *models.Deployment) error {
-		return adapter.Cancel(ctx, deployment)
-	}
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", reg, reg, v0extensions.PlatformExtensions{
-		ProviderPlatforms: v0providers.DefaultProviderPlatformAdapters(reg),
-		DeploymentPlatforms: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	})
+	registerDeploymentTestEndpoints(mux, reg, map[string]registrytypes.DeploymentPlatformAdapter{"local": adapter})
 
 	req := httptest.NewRequest(http.MethodPost, "/v0/deployments/dep-3/cancel", nil)
 	w := httptest.NewRecorder()

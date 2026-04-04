@@ -13,6 +13,8 @@ import (
 
 	"github.com/agentregistry-dev/agentregistry/internal/cli/agent/frameworks/common"
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
@@ -20,16 +22,6 @@ import (
 )
 
 const DefaultLocalAgentPort uint16 = 8080
-
-type serverRegistry interface {
-	GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error)
-}
-
-type agentRegistry interface {
-	GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
-	ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error)
-	ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error)
-}
 
 type MCPServerRunRequest struct {
 	RegistryServer *apiv0.ServerJSON
@@ -60,7 +52,7 @@ func ValidateDeploymentRequest(deployment *models.Deployment, allowExisting bool
 
 func BuildPlatformMCPServer(
 	ctx context.Context,
-	serverService serverRegistry,
+	serverService *serversvc.Service,
 	deployment *models.Deployment,
 	namespace string,
 ) (*platformtypes.MCPServer, error) {
@@ -88,8 +80,8 @@ func BuildPlatformMCPServer(
 
 func ResolveAgent(
 	ctx context.Context,
-	serverService serverRegistry,
-	agentService agentRegistry,
+	serverService *serversvc.Service,
+	agentService *agentsvc.Service,
 	deployment *models.Deployment,
 	namespace string,
 ) (*platformtypes.ResolvedAgentConfig, error) {
@@ -145,7 +137,7 @@ func ResolveAgent(
 
 func resolveAgentManifestPlatformMCPServers(
 	ctx context.Context,
-	serverService serverRegistry,
+	serverService *serversvc.Service,
 	deploymentID string,
 	manifest *models.AgentManifest,
 	namespace string,

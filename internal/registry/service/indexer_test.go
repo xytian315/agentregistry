@@ -8,6 +8,8 @@ import (
 
 	"github.com/agentregistry-dev/agentregistry/internal/registry/embeddings"
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
@@ -172,6 +174,299 @@ func (f *fakeIndexerRegistry) ResolveAgentManifestPrompts(context.Context, *mode
 	return nil, nil
 }
 
+type fakeIndexerServerStore struct{ registry *fakeIndexerRegistry }
+
+func (s *fakeIndexerServerStore) DeleteServer(context.Context, string, string) error {
+	return nil
+}
+
+func (s *fakeIndexerServerStore) CreateServer(context.Context, *apiv0.ServerJSON, *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeIndexerServerStore) UpdateServer(context.Context, string, string, *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeIndexerServerStore) SetServerStatus(context.Context, string, string, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeIndexerServerStore) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	return s.registry.ListServers(ctx, filter, cursor, limit)
+}
+
+func (s *fakeIndexerServerStore) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByName(ctx, serverName)
+}
+
+func (s *fakeIndexerServerStore) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByNameAndVersion(ctx, serverName, version)
+}
+
+func (s *fakeIndexerServerStore) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	return s.registry.GetAllVersionsByServerName(ctx, serverName)
+}
+
+func (s *fakeIndexerServerStore) GetCurrentLatestVersion(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByName(ctx, serverName)
+}
+
+func (s *fakeIndexerServerStore) CountServerVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakeIndexerServerStore) CheckVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakeIndexerServerStore) UnmarkAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeIndexerServerStore) AcquireServerCreateLock(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeIndexerServerStore) SetServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
+	return s.registry.UpsertServerEmbedding(ctx, serverName, version, embedding)
+}
+
+func (s *fakeIndexerServerStore) GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	return s.registry.GetServerEmbeddingMetadata(ctx, serverName, version)
+}
+
+func (s *fakeIndexerServerStore) UpsertServerReadme(context.Context, *database.ServerReadme) error {
+	return nil
+}
+
+func (s *fakeIndexerServerStore) GetServerReadme(context.Context, string, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+func (s *fakeIndexerServerStore) GetLatestServerReadme(context.Context, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+type fakeIndexerAgentStore struct{ registry *fakeIndexerRegistry }
+
+func (s *fakeIndexerAgentStore) CreateAgent(context.Context, *models.AgentJSON, *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeIndexerAgentStore) UpdateAgent(context.Context, string, string, *models.AgentJSON) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeIndexerAgentStore) SetAgentStatus(context.Context, string, string, string) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeIndexerAgentStore) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	return s.registry.ListAgents(ctx, filter, cursor, limit)
+}
+
+func (s *fakeIndexerAgentStore) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByName(ctx, agentName)
+}
+
+func (s *fakeIndexerAgentStore) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByNameAndVersion(ctx, agentName, version)
+}
+
+func (s *fakeIndexerAgentStore) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+	return s.registry.GetAllVersionsByAgentName(ctx, agentName)
+}
+
+func (s *fakeIndexerAgentStore) GetCurrentLatestAgentVersion(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByName(ctx, agentName)
+}
+
+func (s *fakeIndexerAgentStore) CountAgentVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakeIndexerAgentStore) CheckAgentVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakeIndexerAgentStore) UnmarkAgentAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeIndexerAgentStore) DeleteAgent(context.Context, string, string) error {
+	return nil
+}
+
+func (s *fakeIndexerAgentStore) SetAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
+	return s.registry.UpsertAgentEmbedding(ctx, agentName, version, embedding)
+}
+
+func (s *fakeIndexerAgentStore) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	return s.registry.GetAgentEmbeddingMetadata(ctx, agentName, version)
+}
+
+type fakeIndexerNoopStore struct{}
+
+func (fakeIndexerNoopStore) CreateSkill(context.Context, *models.SkillJSON, *models.SkillRegistryExtensions) (*models.SkillResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (fakeIndexerNoopStore) UpdateSkill(context.Context, string, string, *models.SkillJSON) (*models.SkillResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (fakeIndexerNoopStore) SetSkillStatus(context.Context, string, string, string) (*models.SkillResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (fakeIndexerNoopStore) ListSkills(context.Context, *database.SkillFilter, string, int) ([]*models.SkillResponse, string, error) {
+	return nil, "", nil
+}
+
+func (fakeIndexerNoopStore) GetSkillByName(context.Context, string) (*models.SkillResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) GetSkillByNameAndVersion(context.Context, string, string) (*models.SkillResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) GetAllVersionsBySkillName(context.Context, string) ([]*models.SkillResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) GetCurrentLatestSkillVersion(context.Context, string) (*models.SkillResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) CountSkillVersions(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (fakeIndexerNoopStore) CheckSkillVersionExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+func (fakeIndexerNoopStore) UnmarkSkillAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (fakeIndexerNoopStore) DeleteSkill(context.Context, string, string) error {
+	return nil
+}
+
+func (fakeIndexerNoopStore) CreatePrompt(context.Context, *models.PromptJSON, *models.PromptRegistryExtensions) (*models.PromptResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (fakeIndexerNoopStore) ListPrompts(context.Context, *database.PromptFilter, string, int) ([]*models.PromptResponse, string, error) {
+	return nil, "", nil
+}
+
+func (fakeIndexerNoopStore) GetPromptByName(context.Context, string) (*models.PromptResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) GetPromptByNameAndVersion(context.Context, string, string) (*models.PromptResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) GetAllVersionsByPromptName(context.Context, string) ([]*models.PromptResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) GetCurrentLatestPromptVersion(context.Context, string) (*models.PromptResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) CountPromptVersions(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (fakeIndexerNoopStore) CheckPromptVersionExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+func (fakeIndexerNoopStore) UnmarkPromptAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (fakeIndexerNoopStore) DeletePrompt(context.Context, string, string) error {
+	return nil
+}
+
+func (fakeIndexerNoopStore) CreateProvider(context.Context, *models.CreateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (fakeIndexerNoopStore) ListProviders(context.Context, *string) ([]*models.Provider, error) {
+	return nil, nil
+}
+
+func (fakeIndexerNoopStore) GetProviderByID(context.Context, string) (*models.Provider, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) UpdateProvider(context.Context, string, *models.UpdateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (fakeIndexerNoopStore) DeleteProvider(context.Context, string) error {
+	return nil
+}
+
+func (fakeIndexerNoopStore) CreateDeployment(context.Context, *models.Deployment) error {
+	return database.ErrInvalidInput
+}
+
+func (fakeIndexerNoopStore) GetDeployments(context.Context, *models.DeploymentFilter) ([]*models.Deployment, error) {
+	return nil, nil
+}
+
+func (fakeIndexerNoopStore) GetDeploymentByID(context.Context, string) (*models.Deployment, error) {
+	return nil, database.ErrNotFound
+}
+
+func (fakeIndexerNoopStore) UpdateDeploymentState(context.Context, string, *models.DeploymentStatePatch) error {
+	return nil
+}
+
+func (fakeIndexerNoopStore) RemoveDeploymentByID(context.Context, string) error {
+	return nil
+}
+
+type fakeIndexerStore struct {
+	*fakeIndexerServerStore
+	*fakeIndexerAgentStore
+	fakeIndexerNoopStore
+}
+
+func newFakeIndexerStore(registry *fakeIndexerRegistry) *fakeIndexerStore {
+	return &fakeIndexerStore{
+		fakeIndexerServerStore: &fakeIndexerServerStore{registry: registry},
+		fakeIndexerAgentStore:  &fakeIndexerAgentStore{registry: registry},
+	}
+}
+
+func (s *fakeIndexerStore) InTransaction(ctx context.Context, fn func(context.Context, database.Store) error) error {
+	return fn(ctx, s)
+}
+
+func (s *fakeIndexerStore) Close() error {
+	return nil
+}
+
+func newTestIndexer(registry *fakeIndexerRegistry, provider embeddings.Provider, dimensions int) Indexer {
+	store := newFakeIndexerStore(registry)
+	return NewIndexer(
+		serversvc.New(serversvc.Dependencies{StoreDB: store, Servers: store}),
+		agentsvc.New(agentsvc.Dependencies{StoreDB: store, Agents: store}),
+		provider,
+		dimensions,
+	)
+}
+
 // mockProvider implements embeddings.Provider for testing.
 type mockProvider struct {
 	generateFunc func(ctx context.Context, payload embeddings.Payload) (*embeddings.Result, error)
@@ -202,7 +497,7 @@ func (m *mockProvider) getCallCount() int {
 
 func TestIndexer_Run_ProviderNil(t *testing.T) {
 	mockRegistry := newFakeIndexerRegistry()
-	indexer := NewIndexer(mockRegistry, mockRegistry, nil, 1536)
+	indexer := newTestIndexer(mockRegistry, nil, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -219,7 +514,7 @@ func TestIndexer_Run_ProviderNil(t *testing.T) {
 func TestIndexer_Run_NoTargetsSelected(t *testing.T) {
 	mockRegistry := newFakeIndexerRegistry()
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: false,
@@ -264,7 +559,7 @@ func TestIndexer_Run_ServersOnly(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -315,7 +610,7 @@ func TestIndexer_Run_AgentsOnly(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: false,
@@ -346,7 +641,7 @@ func TestIndexer_Run_DryRun(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -383,7 +678,7 @@ func TestIndexer_Run_Force(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -423,7 +718,7 @@ func TestIndexer_Run_SkipsUpToDate(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -455,7 +750,7 @@ func TestIndexer_Run_ContextCancelled(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	// Create a cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -487,7 +782,7 @@ func TestIndexer_Run_ProgressCallback(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	var progressCalls []IndexStats
 	var mu sync.Mutex
@@ -532,7 +827,7 @@ func TestIndexer_Run_EmptyPayloadSkipped(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -572,7 +867,7 @@ func TestIndexer_Run_BothServersAndAgents(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,
@@ -604,7 +899,7 @@ func TestIndexer_Run_DefaultBatchSize(t *testing.T) {
 	}
 
 	mockProv := &mockProvider{}
-	indexer := NewIndexer(mockRegistry, mockRegistry, mockProv, 1536)
+	indexer := newTestIndexer(mockRegistry, mockProv, 1536)
 
 	opts := IndexOptions{
 		IncludeServers: true,

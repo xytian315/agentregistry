@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,8 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
+	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
+	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
+	registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
 	"github.com/modelcontextprotocol/registry/pkg/model"
@@ -38,6 +44,7 @@ type fakeMCPRegistry struct {
 	getSkillByNameVersionFn  func(ctx context.Context, skillName, version string) (*models.SkillResponse, error)
 	getDeploymentsFn         func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
 	getDeploymentByIDFn      func(ctx context.Context, id string) (*models.Deployment, error)
+	createDeploymentRecordFn func(ctx context.Context, deployment *models.Deployment) (*models.Deployment, error)
 	deployServerFn           func(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
 	deployAgentFn            func(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
 	undeployFn               func(ctx context.Context, deployment *models.Deployment) error
@@ -260,6 +267,438 @@ func (f *fakeMCPRegistry) CancelDeployment(ctx context.Context, deployment *mode
 	return errors.New("not implemented")
 }
 
+type fakeMCPDeploymentHarness struct {
+	registry         *fakeMCPRegistry
+	deployments      map[string]*models.Deployment
+	nextDeploymentID int
+}
+
+func newFakeMCPDeploymentHarness(registry *fakeMCPRegistry) *fakeMCPDeploymentHarness {
+	return &fakeMCPDeploymentHarness{
+		registry:         registry,
+		deployments:      map[string]*models.Deployment{},
+		nextDeploymentID: 1,
+	}
+}
+
+func (h *fakeMCPDeploymentHarness) CreateProvider(context.Context, *models.CreateProviderInput) (*models.Provider, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (h *fakeMCPDeploymentHarness) ListProviders(context.Context, *string) ([]*models.Provider, error) {
+	return []*models.Provider{{ID: "local", Platform: "local"}}, nil
+}
+
+func (h *fakeMCPDeploymentHarness) GetProviderByID(context.Context, string) (*models.Provider, error) {
+	return &models.Provider{ID: "local", Platform: "local"}, nil
+}
+
+func (h *fakeMCPDeploymentHarness) UpdateProvider(context.Context, string, *models.UpdateProviderInput) (*models.Provider, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (h *fakeMCPDeploymentHarness) DeleteProvider(context.Context, string) error {
+	return errors.New("not implemented")
+}
+
+func (h *fakeMCPDeploymentHarness) CreateDeployment(ctx context.Context, deployment *models.Deployment) error {
+	created := deployment
+	if h.registry.createDeploymentRecordFn != nil {
+		var err error
+		created, err = h.registry.createDeploymentRecordFn(ctx, deployment)
+		if err != nil {
+			return err
+		}
+	}
+	if created == nil {
+		created = deployment
+	}
+	stored := *created
+	if stored.ID == "" {
+		stored.ID = fmt.Sprintf("dep-%d", h.nextDeploymentID)
+		h.nextDeploymentID++
+	}
+	deployment.ID = stored.ID
+	if stored.Env == nil {
+		stored.Env = map[string]string{}
+	}
+	h.deployments[stored.ID] = &stored
+	return nil
+}
+
+func (h *fakeMCPDeploymentHarness) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	if h.registry.getDeploymentsFn != nil {
+		return h.registry.getDeploymentsFn(ctx, filter)
+	}
+	if len(h.deployments) > 0 {
+		deployments := make([]*models.Deployment, 0, len(h.deployments))
+		for _, deployment := range h.deployments {
+			deployments = append(deployments, deployment)
+		}
+		return deployments, nil
+	}
+	return h.registry.deployments, nil
+}
+
+func (h *fakeMCPDeploymentHarness) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+	if h.registry.getDeploymentByIDFn != nil {
+		return h.registry.getDeploymentByIDFn(ctx, id)
+	}
+	if deployment, ok := h.deployments[id]; ok {
+		return deployment, nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (h *fakeMCPDeploymentHarness) UpdateDeploymentState(_ context.Context, id string, patch *models.DeploymentStatePatch) error {
+	deployment, ok := h.deployments[id]
+	if !ok {
+		return database.ErrNotFound
+	}
+	if patch.Status != nil {
+		deployment.Status = *patch.Status
+	}
+	if patch.Error != nil {
+		deployment.Error = *patch.Error
+	}
+	if patch.ProviderConfig != nil {
+		deployment.ProviderConfig = *patch.ProviderConfig
+	}
+	if patch.ProviderMetadata != nil {
+		deployment.ProviderMetadata = *patch.ProviderMetadata
+	}
+	return nil
+}
+
+
+func (h *fakeMCPDeploymentHarness) RemoveDeploymentByID(_ context.Context, id string) error {
+	delete(h.deployments, id)
+	return nil
+}
+
+func (h *fakeMCPDeploymentHarness) Platform() string { return "local" }
+
+func (h *fakeMCPDeploymentHarness) SupportedResourceTypes() []string {
+	return []string{"mcp", "agent"}
+}
+
+func (h *fakeMCPDeploymentHarness) Deploy(ctx context.Context, deployment *models.Deployment) (*models.DeploymentActionResult, error) {
+	if deployment == nil {
+		return nil, database.ErrInvalidInput
+	}
+	if deployment.ResourceType == "agent" {
+		if h.registry.deployAgentFn != nil {
+			result, err := h.registry.deployAgentFn(ctx, deployment.ServerName, deployment.Version, deployment.Env, deployment.PreferRemote, deployment.ProviderID)
+			if err != nil {
+				return nil, err
+			}
+			if result != nil && result.Status != "" {
+				return &models.DeploymentActionResult{Status: result.Status}, nil
+			}
+		}
+		return &models.DeploymentActionResult{Status: models.DeploymentStatusDeployed}, nil
+	}
+	if h.registry.deployServerFn != nil {
+		result, err := h.registry.deployServerFn(ctx, deployment.ServerName, deployment.Version, deployment.Env, deployment.PreferRemote, deployment.ProviderID)
+		if err != nil {
+			return nil, err
+		}
+		if result != nil && result.Status != "" {
+			return &models.DeploymentActionResult{Status: result.Status}, nil
+		}
+	}
+	return &models.DeploymentActionResult{Status: models.DeploymentStatusDeployed}, nil
+}
+
+func (h *fakeMCPDeploymentHarness) Undeploy(ctx context.Context, deployment *models.Deployment) error {
+	if h.registry.undeployFn != nil {
+		return h.registry.undeployFn(ctx, deployment)
+	}
+	return nil
+}
+
+func (h *fakeMCPDeploymentHarness) GetLogs(context.Context, *models.Deployment) ([]string, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (h *fakeMCPDeploymentHarness) Cancel(context.Context, *models.Deployment) error {
+	return errors.New("not implemented")
+}
+
+func (h *fakeMCPDeploymentHarness) Discover(context.Context, string) ([]*models.Deployment, error) {
+	return nil, nil
+}
+
+type fakeMCPServerStore struct{ registry *fakeMCPRegistry }
+
+func (s *fakeMCPServerStore) DeleteServer(context.Context, string, string) error {
+	return errors.New("not implemented")
+}
+
+func (s *fakeMCPServerStore) CreateServer(context.Context, *apiv0.ServerJSON, *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeMCPServerStore) UpdateServer(context.Context, string, string, *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeMCPServerStore) SetServerStatus(context.Context, string, string, string) (*apiv0.ServerResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeMCPServerStore) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	if s.registry.listServersFn != nil {
+		return s.registry.listServersFn(ctx, filter, cursor, limit)
+	}
+	return s.registry.servers, "", nil
+}
+
+func (s *fakeMCPServerStore) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.GetServerByNameAndVersion(ctx, serverName, "latest")
+}
+
+func (s *fakeMCPServerStore) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	if s.registry.getServerByNameVersionFn != nil {
+		return s.registry.getServerByNameVersionFn(ctx, serverName, version)
+	}
+	if len(s.registry.servers) > 0 {
+		return s.registry.servers[0], nil
+	}
+	return &apiv0.ServerResponse{Server: apiv0.ServerJSON{Name: serverName, Version: version}}, nil
+}
+
+func (s *fakeMCPServerStore) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	if s.registry.getAllServerVersionsFn != nil {
+		return s.registry.getAllServerVersionsFn(ctx, serverName)
+	}
+	if len(s.registry.servers) > 0 {
+		return s.registry.servers, nil
+	}
+	server, err := s.GetServerByName(ctx, serverName)
+	if err != nil {
+		return nil, err
+	}
+	return []*apiv0.ServerResponse{server}, nil
+}
+
+func (s *fakeMCPServerStore) GetCurrentLatestVersion(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.GetServerByName(ctx, serverName)
+}
+
+func (s *fakeMCPServerStore) CountServerVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakeMCPServerStore) CheckVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakeMCPServerStore) UnmarkAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeMCPServerStore) AcquireServerCreateLock(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeMCPServerStore) SetServerEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (s *fakeMCPServerStore) GetServerEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+func (s *fakeMCPServerStore) UpsertServerReadme(context.Context, *database.ServerReadme) error {
+	return nil
+}
+
+func (s *fakeMCPServerStore) GetServerReadme(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
+	if s.registry.getServerReadmeByVerFn != nil {
+		return s.registry.getServerReadmeByVerFn(ctx, serverName, version)
+	}
+	return s.GetLatestServerReadme(ctx, serverName)
+}
+
+func (s *fakeMCPServerStore) GetLatestServerReadme(ctx context.Context, serverName string) (*database.ServerReadme, error) {
+	if s.registry.getServerReadmeLatestFn != nil {
+		return s.registry.getServerReadmeLatestFn(ctx, serverName)
+	}
+	if s.registry.serverReadme != nil {
+		return s.registry.serverReadme, nil
+	}
+	return nil, database.ErrNotFound
+}
+
+type fakeMCPAgentStore struct{ registry *fakeMCPRegistry }
+
+func (s *fakeMCPAgentStore) CreateAgent(context.Context, *models.AgentJSON, *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeMCPAgentStore) UpdateAgent(context.Context, string, string, *models.AgentJSON) (*models.AgentResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeMCPAgentStore) SetAgentStatus(context.Context, string, string, string) (*models.AgentResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeMCPAgentStore) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	if s.registry.listAgentsFn != nil {
+		return s.registry.listAgentsFn(ctx, filter, cursor, limit)
+	}
+	return s.registry.agents, "", nil
+}
+
+func (s *fakeMCPAgentStore) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	if s.registry.getAgentByNameFn != nil {
+		return s.registry.getAgentByNameFn(ctx, agentName)
+	}
+	if len(s.registry.agents) > 0 {
+		return s.registry.agents[0], nil
+	}
+	return &models.AgentResponse{Agent: models.AgentJSON{AgentManifest: models.AgentManifest{Name: agentName}, Version: "latest"}}, nil
+}
+
+func (s *fakeMCPAgentStore) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	if s.registry.getAgentByNameVersionFn != nil {
+		return s.registry.getAgentByNameVersionFn(ctx, agentName, version)
+	}
+	if len(s.registry.agents) > 0 {
+		return s.registry.agents[0], nil
+	}
+	return &models.AgentResponse{Agent: models.AgentJSON{AgentManifest: models.AgentManifest{Name: agentName}, Version: version}}, nil
+}
+
+func (s *fakeMCPAgentStore) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+	if len(s.registry.agents) > 0 {
+		return s.registry.agents, nil
+	}
+	agent, err := s.GetAgentByName(ctx, agentName)
+	if err != nil {
+		return nil, err
+	}
+	return []*models.AgentResponse{agent}, nil
+}
+
+func (s *fakeMCPAgentStore) GetCurrentLatestAgentVersion(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.GetAgentByName(ctx, agentName)
+}
+
+func (s *fakeMCPAgentStore) CountAgentVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakeMCPAgentStore) CheckAgentVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakeMCPAgentStore) UnmarkAgentAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeMCPAgentStore) DeleteAgent(context.Context, string, string) error {
+	return nil
+}
+
+func (s *fakeMCPAgentStore) SetAgentEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (s *fakeMCPAgentStore) GetAgentEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+type fakeMCPSkillStore struct{ registry *fakeMCPRegistry }
+
+func (s *fakeMCPSkillStore) CreateSkill(context.Context, *models.SkillJSON, *models.SkillRegistryExtensions) (*models.SkillResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeMCPSkillStore) UpdateSkill(context.Context, string, string, *models.SkillJSON) (*models.SkillResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeMCPSkillStore) SetSkillStatus(context.Context, string, string, string) (*models.SkillResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeMCPSkillStore) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+	if s.registry.listSkillsFn != nil {
+		return s.registry.listSkillsFn(ctx, filter, cursor, limit)
+	}
+	return s.registry.skills, "", nil
+}
+
+func (s *fakeMCPSkillStore) GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error) {
+	if s.registry.getSkillByNameFn != nil {
+		return s.registry.getSkillByNameFn(ctx, skillName)
+	}
+	if len(s.registry.skills) > 0 {
+		return s.registry.skills[0], nil
+	}
+	return &models.SkillResponse{Skill: models.SkillJSON{Name: skillName, Version: "latest"}}, nil
+}
+
+func (s *fakeMCPSkillStore) GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error) {
+	if s.registry.getSkillByNameVersionFn != nil {
+		return s.registry.getSkillByNameVersionFn(ctx, skillName, version)
+	}
+	if len(s.registry.skills) > 0 {
+		return s.registry.skills[0], nil
+	}
+	return &models.SkillResponse{Skill: models.SkillJSON{Name: skillName, Version: version}}, nil
+}
+
+func (s *fakeMCPSkillStore) GetAllVersionsBySkillName(ctx context.Context, skillName string) ([]*models.SkillResponse, error) {
+	if len(s.registry.skills) > 0 {
+		return s.registry.skills, nil
+	}
+	skill, err := s.GetSkillByName(ctx, skillName)
+	if err != nil {
+		return nil, err
+	}
+	return []*models.SkillResponse{skill}, nil
+}
+
+func (s *fakeMCPSkillStore) GetCurrentLatestSkillVersion(ctx context.Context, skillName string) (*models.SkillResponse, error) {
+	return s.GetSkillByName(ctx, skillName)
+}
+
+func (s *fakeMCPSkillStore) CountSkillVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakeMCPSkillStore) CheckSkillVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakeMCPSkillStore) UnmarkSkillAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeMCPSkillStore) DeleteSkill(context.Context, string, string) error {
+	return nil
+}
+
+func newTestMCPServer(reg *fakeMCPRegistry) *mcp.Server {
+	deploymentHarness := newFakeMCPDeploymentHarness(reg)
+	return NewServer(
+		serversvc.New(serversvc.Dependencies{Servers: &fakeMCPServerStore{registry: reg}}),
+		agentsvc.New(agentsvc.Dependencies{Agents: &fakeMCPAgentStore{registry: reg}}),
+		skillsvc.New(skillsvc.Dependencies{Skills: &fakeMCPSkillStore{registry: reg}}),
+		deploymentsvc.New(deploymentsvc.Dependencies{
+			Providers:          deploymentHarness,
+			Servers:            &fakeMCPServerStore{registry: reg},
+			Agents:             &fakeMCPAgentStore{registry: reg},
+			Deployments:        deploymentHarness,
+			DeploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{"local": deploymentHarness},
+		}),
+	)
+}
+
 func TestServerTools_ListAndReadme(t *testing.T) {
 	ctx := context.Background()
 
@@ -284,7 +723,7 @@ func TestServerTools_ListAndReadme(t *testing.T) {
 		},
 	}, serverReadme: readme}
 
-	server := NewServer(reg, reg, reg, reg)
+	server := newTestMCPServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -368,7 +807,7 @@ func TestAgentAndSkillTools_ListAndGet(t *testing.T) {
 		},
 	}}
 
-	server := NewServer(reg, reg, reg, reg)
+	server := newTestMCPServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)

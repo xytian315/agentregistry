@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
@@ -152,6 +154,142 @@ func (f *fakePlatformRuntimeRegistry) ResolveAgentManifestPrompts(ctx context.Co
 		return f.resolvePromptsFn(ctx, manifest)
 	}
 	return nil, nil
+}
+
+type fakePlatformServerStore struct{ registry *fakePlatformRuntimeRegistry }
+
+func (s *fakePlatformServerStore) DeleteServer(context.Context, string, string) error {
+	return nil
+}
+
+func (s *fakePlatformServerStore) CreateServer(context.Context, *apiv0.ServerJSON, *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakePlatformServerStore) UpdateServer(context.Context, string, string, *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakePlatformServerStore) SetServerStatus(context.Context, string, string, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakePlatformServerStore) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	return s.registry.ListServers(ctx, filter, cursor, limit)
+}
+
+func (s *fakePlatformServerStore) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByName(ctx, serverName)
+}
+
+func (s *fakePlatformServerStore) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByNameAndVersion(ctx, serverName, version)
+}
+
+func (s *fakePlatformServerStore) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	return s.registry.GetAllVersionsByServerName(ctx, serverName)
+}
+
+func (s *fakePlatformServerStore) GetCurrentLatestVersion(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByName(ctx, serverName)
+}
+
+func (s *fakePlatformServerStore) CountServerVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakePlatformServerStore) CheckVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakePlatformServerStore) UnmarkAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakePlatformServerStore) AcquireServerCreateLock(context.Context, string) error {
+	return nil
+}
+
+func (s *fakePlatformServerStore) SetServerEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (s *fakePlatformServerStore) GetServerEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+func (s *fakePlatformServerStore) UpsertServerReadme(context.Context, *database.ServerReadme) error {
+	return nil
+}
+
+func (s *fakePlatformServerStore) GetServerReadme(context.Context, string, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+func (s *fakePlatformServerStore) GetLatestServerReadme(context.Context, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+type fakePlatformAgentStore struct{ registry *fakePlatformRuntimeRegistry }
+
+func (s *fakePlatformAgentStore) CreateAgent(context.Context, *models.AgentJSON, *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakePlatformAgentStore) UpdateAgent(context.Context, string, string, *models.AgentJSON) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakePlatformAgentStore) SetAgentStatus(context.Context, string, string, string) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakePlatformAgentStore) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	return s.registry.ListAgents(ctx, filter, cursor, limit)
+}
+
+func (s *fakePlatformAgentStore) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByName(ctx, agentName)
+}
+
+func (s *fakePlatformAgentStore) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByNameAndVersion(ctx, agentName, version)
+}
+
+func (s *fakePlatformAgentStore) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+	return s.registry.GetAllVersionsByAgentName(ctx, agentName)
+}
+
+func (s *fakePlatformAgentStore) GetCurrentLatestAgentVersion(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByName(ctx, agentName)
+}
+
+func (s *fakePlatformAgentStore) CountAgentVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakePlatformAgentStore) CheckAgentVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakePlatformAgentStore) UnmarkAgentAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakePlatformAgentStore) DeleteAgent(context.Context, string, string) error {
+	return nil
+}
+
+func (s *fakePlatformAgentStore) SetAgentEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (s *fakePlatformAgentStore) GetAgentEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+func newPlatformRuntimeServices(registry *fakePlatformRuntimeRegistry) (*serversvc.Service, *agentsvc.Service) {
+	return serversvc.New(serversvc.Dependencies{Servers: &fakePlatformServerStore{registry: registry}}), agentsvc.New(agentsvc.Dependencies{Agents: &fakePlatformAgentStore{registry: registry}})
 }
 
 func TestSplitDeploymentRuntimeInputs(t *testing.T) {
@@ -324,8 +462,9 @@ func TestResolveAgentDefaultsLocalPort(t *testing.T) {
 			Version: "1.0.0",
 		},
 	}}
+	serverService, agentService := newPlatformRuntimeServices(registry)
 
-	resolved, err := ResolveAgent(context.Background(), registry, registry, &models.Deployment{
+	resolved, err := ResolveAgent(context.Background(), serverService, agentService, &models.Deployment{
 		ID:         "dep-123",
 		ServerName: "planner",
 		Version:    "1.0.0",
@@ -388,7 +527,8 @@ func TestResolveAgentNamespaceDefaulting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			registry := newRegistry()
-			resolved, err := ResolveAgent(context.Background(), registry, registry, &models.Deployment{
+			serverService, agentService := newPlatformRuntimeServices(registry)
+			resolved, err := ResolveAgent(context.Background(), serverService, agentService, &models.Deployment{
 				ID:         "dep-123",
 				ServerName: "planner",
 				Version:    "1.0.0",

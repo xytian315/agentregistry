@@ -17,15 +17,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 )
 
-type deploymentRegistry interface {
-	GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
-	GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error)
-	CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
-	UndeployDeployment(ctx context.Context, deployment *models.Deployment) error
-	GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error)
-	CancelDeployment(ctx context.Context, deployment *models.Deployment) error
-}
-
 type DeploymentRequest = apitypes.DeploymentRequest
 
 // DeploymentResponse represents a deployment
@@ -88,7 +79,7 @@ func removeDeploymentHTTPError(err error) error {
 }
 
 // RegisterDeploymentsEndpoints registers all deployment-related endpoints
-func RegisterDeploymentsEndpoints(api huma.API, basePath string, providerSvc database.ProviderStore, deploymentSvc deploymentRegistry, extensions handlerext.PlatformExtensions) {
+func RegisterDeploymentsEndpoints(api huma.API, basePath string, providerSvc database.ProviderStore, deploymentSvc *deploymentsvc.Service, extensions handlerext.PlatformExtensions) {
 	// List all deployments
 	huma.Register(api, huma.Operation{
 		OperationID: "list-deployments",

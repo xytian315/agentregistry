@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	promptsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/prompt"
 	promptmodels "github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
@@ -16,15 +17,6 @@ import (
 )
 
 const errRecordNotFound = "record not found"
-
-type promptRegistry interface {
-	ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*promptmodels.PromptResponse, string, error)
-	GetPromptByName(ctx context.Context, promptName string) (*promptmodels.PromptResponse, error)
-	GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*promptmodels.PromptResponse, error)
-	DeletePrompt(ctx context.Context, promptName, version string) error
-	GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*promptmodels.PromptResponse, error)
-	CreatePrompt(ctx context.Context, req *promptmodels.PromptJSON) (*promptmodels.PromptResponse, error)
-}
 
 // ListPromptsInput represents the input for listing prompts
 type ListPromptsInput struct {
@@ -52,7 +44,7 @@ type PromptVersionsInput struct {
 }
 
 // RegisterPromptsEndpoints registers all prompt-related endpoints with a custom path prefix.
-func RegisterPromptsEndpoints(api huma.API, pathPrefix string, promptSvc promptRegistry) {
+func RegisterPromptsEndpoints(api huma.API, pathPrefix string, promptSvc *promptsvc.Service) {
 	tags := []string{"prompts"}
 	if strings.Contains(pathPrefix, "admin") {
 		tags = append(tags, "admin")
@@ -237,7 +229,7 @@ type CreatePromptInput struct {
 }
 
 // createPromptHandler is the shared handler logic for creating prompts
-func createPromptHandler(ctx context.Context, input *CreatePromptInput, promptSvc promptRegistry) (*types.Response[promptmodels.PromptResponse], error) {
+func createPromptHandler(ctx context.Context, input *CreatePromptInput, promptSvc *promptsvc.Service) (*types.Response[promptmodels.PromptResponse], error) {
 	createdPrompt, err := promptSvc.CreatePrompt(ctx, &input.Body)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
@@ -256,7 +248,7 @@ func createPromptHandler(ctx context.Context, input *CreatePromptInput, promptSv
 }
 
 // RegisterPromptsCreateEndpoint registers POST /prompts (create or update; immediately visible).
-func RegisterPromptsCreateEndpoint(api huma.API, pathPrefix string, promptSvc promptRegistry) {
+func RegisterPromptsCreateEndpoint(api huma.API, pathPrefix string, promptSvc *promptsvc.Service) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-prompt" + strings.ReplaceAll(pathPrefix, "/", "-"),
 		Method:      http.MethodPost,

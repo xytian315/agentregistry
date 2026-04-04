@@ -37,7 +37,7 @@ func TestDeploymentTools_ListAndGet(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	server := NewServer(reg, reg, reg, reg)
+	server := newTestMCPServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestDeploymentTools_NoAuthConfigured_AllowsRequests(t *testing.T) {
 		return &models.Deployment{ID: id, ServerName: "com.example/no-auth", Version: "1.0.0", ResourceType: "mcp", Env: map[string]string{}}, nil
 	}
 
-	server := NewServer(reg, reg, reg, reg)
+	server := newTestMCPServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -164,11 +164,14 @@ func TestDeploymentTools_DeployRemove(t *testing.T) {
 	reg.deployAgentFn = func(ctx context.Context, name, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
 		return agentDep, nil
 	}
-	reg.getDeploymentByIDFn = func(_ context.Context, id string) (*models.Deployment, error) {
-		if id == deployed.ID {
-			return deployed, nil
+	reg.createDeploymentRecordFn = func(_ context.Context, deployment *models.Deployment) (*models.Deployment, error) {
+		stored := *deployment
+		if deployment.ResourceType == "agent" {
+			stored.ID = "dep-agent-1"
+		} else {
+			stored.ID = deployed.ID
 		}
-		return nil, errors.New("not found")
+		return &stored, nil
 	}
 	reg.undeployFn = func(_ context.Context, deployment *models.Deployment) error {
 		if deployment != nil && deployment.ID == deployed.ID {
@@ -178,7 +181,7 @@ func TestDeploymentTools_DeployRemove(t *testing.T) {
 		return errors.New("not found")
 	}
 
-	server := NewServer(reg, reg, reg, reg)
+	server := newTestMCPServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -263,7 +266,7 @@ func TestDeploymentTools_FilterResourceType(t *testing.T) {
 		return deployments, nil
 	}
 
-	server := NewServer(reg, reg, reg, reg)
+	server := newTestMCPServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -301,7 +304,7 @@ func TestDeploymentTools_GetDeploymentRequiresID(t *testing.T) {
 	ctx := context.Background()
 	reg := &fakeMCPRegistry{}
 
-	server := NewServer(reg, reg, reg, reg)
+	server := newTestMCPServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
@@ -328,7 +331,7 @@ func TestDeploymentTools_RemoveDeploymentRequiresID(t *testing.T) {
 	ctx := context.Background()
 	reg := &fakeMCPRegistry{}
 
-	server := NewServer(reg, reg, reg, reg)
+	server := newTestMCPServer(reg)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)

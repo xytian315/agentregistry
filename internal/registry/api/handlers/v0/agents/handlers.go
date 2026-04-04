@@ -10,6 +10,7 @@ import (
 
 	"github.com/agentregistry-dev/agentregistry/internal/registry/api/apitypes"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/deploymentmeta"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	agentmodels "github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
@@ -18,15 +19,6 @@ import (
 )
 
 const errRecordNotFound = "record not found"
-
-type agentRegistry interface {
-	ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*agentmodels.AgentResponse, string, error)
-	GetAgentByName(ctx context.Context, agentName string) (*agentmodels.AgentResponse, error)
-	GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*agentmodels.AgentResponse, error)
-	DeleteAgent(ctx context.Context, agentName, version string) error
-	GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*agentmodels.AgentResponse, error)
-	CreateAgent(ctx context.Context, req *agentmodels.AgentJSON) (*agentmodels.AgentResponse, error)
-}
 
 // AgentDetailInput represents the input for getting agent details
 type AgentDetailInput struct {
@@ -45,7 +37,7 @@ type AgentVersionsInput struct {
 }
 
 // RegisterAgentsEndpoints registers all agent-related endpoints with a custom path prefix.
-func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc agentRegistry, deploymentSvc deploymentmeta.Lister) {
+func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc *agentsvc.Service, deploymentSvc deploymentmeta.Lister) {
 	tags := []string{"agents"}
 	if strings.Contains(pathPrefix, "admin") {
 		tags = append(tags, "admin")
@@ -252,7 +244,7 @@ type CreateAgentInput struct {
 }
 
 // createAgentHandler is the shared handler logic for creating agents
-func createAgentHandler(ctx context.Context, input *CreateAgentInput, agentSvc agentRegistry, deploymentSvc deploymentmeta.Lister) (*types.Response[agentmodels.AgentResponse], error) {
+func createAgentHandler(ctx context.Context, input *CreateAgentInput, agentSvc *agentsvc.Service, deploymentSvc deploymentmeta.Lister) (*types.Response[agentmodels.AgentResponse], error) {
 	// Create/update the agent (published defaults to false in the service layer)
 	createdAgent, err := agentSvc.CreateAgent(ctx, &input.Body)
 	if err != nil {
@@ -278,7 +270,7 @@ func createAgentHandler(ctx context.Context, input *CreateAgentInput, agentSvc a
 }
 
 // RegisterAgentsCreateEndpoint registers POST /agents (create or update; immediately visible).
-func RegisterAgentsCreateEndpoint(api huma.API, pathPrefix string, agentSvc agentRegistry, deploymentSvc deploymentmeta.Lister) {
+func RegisterAgentsCreateEndpoint(api huma.API, pathPrefix string, agentSvc *agentsvc.Service, deploymentSvc deploymentmeta.Lister) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-agent" + strings.ReplaceAll(pathPrefix, "/", "-"),
 		Method:      http.MethodPost,

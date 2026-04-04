@@ -6,6 +6,8 @@ import (
 
 	"github.com/agentregistry-dev/agentregistry/internal/cli/agent/frameworks/common"
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	composetypes "github.com/compose-spec/compose-go/v2/types"
@@ -18,6 +20,8 @@ type fakeLocalPlatformRuntimeRegistry struct {
 	resolvePromptsFn  func(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error)
 	getServerByVerFn  func(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error)
 	getProviderByIDFn func(ctx context.Context, providerID string) (*models.Provider, error)
+	getPromptByNameFn func(ctx context.Context, promptName string) (*models.PromptResponse, error)
+	getPromptByVerFn  func(ctx context.Context, promptName, version string) (*models.PromptResponse, error)
 }
 
 func (f *fakeLocalPlatformRuntimeRegistry) ListServers(context.Context, *database.ServerFilter, string, int) ([]*apiv0.ServerResponse, string, error) {
@@ -133,6 +137,200 @@ func (f *fakeLocalPlatformRuntimeRegistry) ResolveAgentManifestPrompts(ctx conte
 	return nil, nil
 }
 
+type fakeLocalServerStore struct{ registry *fakeLocalPlatformRuntimeRegistry }
+
+func (s *fakeLocalServerStore) DeleteServer(context.Context, string, string) error {
+	return nil
+}
+
+func (s *fakeLocalServerStore) CreateServer(context.Context, *apiv0.ServerJSON, *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeLocalServerStore) UpdateServer(context.Context, string, string, *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeLocalServerStore) SetServerStatus(context.Context, string, string, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeLocalServerStore) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	return s.registry.ListServers(ctx, filter, cursor, limit)
+}
+
+func (s *fakeLocalServerStore) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByName(ctx, serverName)
+}
+
+func (s *fakeLocalServerStore) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByNameAndVersion(ctx, serverName, version)
+}
+
+func (s *fakeLocalServerStore) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	return s.registry.GetAllVersionsByServerName(ctx, serverName)
+}
+
+func (s *fakeLocalServerStore) GetCurrentLatestVersion(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByName(ctx, serverName)
+}
+
+func (s *fakeLocalServerStore) CountServerVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakeLocalServerStore) CheckVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakeLocalServerStore) UnmarkAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeLocalServerStore) AcquireServerCreateLock(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeLocalServerStore) SetServerEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (s *fakeLocalServerStore) GetServerEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+func (s *fakeLocalServerStore) UpsertServerReadme(context.Context, *database.ServerReadme) error {
+	return nil
+}
+
+func (s *fakeLocalServerStore) GetServerReadme(context.Context, string, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+func (s *fakeLocalServerStore) GetLatestServerReadme(context.Context, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+type fakeLocalAgentStore struct{ registry *fakeLocalPlatformRuntimeRegistry }
+
+func (s *fakeLocalAgentStore) CreateAgent(context.Context, *models.AgentJSON, *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeLocalAgentStore) UpdateAgent(context.Context, string, string, *models.AgentJSON) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeLocalAgentStore) SetAgentStatus(context.Context, string, string, string) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeLocalAgentStore) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	return s.registry.ListAgents(ctx, filter, cursor, limit)
+}
+
+func (s *fakeLocalAgentStore) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByName(ctx, agentName)
+}
+
+func (s *fakeLocalAgentStore) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByNameAndVersion(ctx, agentName, version)
+}
+
+func (s *fakeLocalAgentStore) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+	return s.registry.GetAllVersionsByAgentName(ctx, agentName)
+}
+
+func (s *fakeLocalAgentStore) GetCurrentLatestAgentVersion(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByName(ctx, agentName)
+}
+
+func (s *fakeLocalAgentStore) CountAgentVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakeLocalAgentStore) CheckAgentVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakeLocalAgentStore) UnmarkAgentAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeLocalAgentStore) DeleteAgent(context.Context, string, string) error {
+	return nil
+}
+
+func (s *fakeLocalAgentStore) SetAgentEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (s *fakeLocalAgentStore) GetAgentEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+type fakeLocalPromptStore struct{ registry *fakeLocalPlatformRuntimeRegistry }
+
+func (s *fakeLocalPromptStore) CreatePrompt(context.Context, *models.PromptJSON, *models.PromptRegistryExtensions) (*models.PromptResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeLocalPromptStore) ListPrompts(context.Context, *database.PromptFilter, string, int) ([]*models.PromptResponse, string, error) {
+	return nil, "", nil
+}
+
+func (s *fakeLocalPromptStore) GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error) {
+	if s.registry.getPromptByNameFn != nil {
+		return s.registry.getPromptByNameFn(ctx, promptName)
+	}
+	if s.registry.getPromptByVerFn != nil {
+		return s.registry.getPromptByVerFn(ctx, promptName, "latest")
+	}
+	return nil, database.ErrNotFound
+}
+
+func (s *fakeLocalPromptStore) GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error) {
+	if s.registry.getPromptByVerFn != nil {
+		return s.registry.getPromptByVerFn(ctx, promptName, version)
+	}
+	if s.registry.getPromptByNameFn != nil {
+		return s.registry.getPromptByNameFn(ctx, promptName)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (s *fakeLocalPromptStore) GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*models.PromptResponse, error) {
+	prompt, err := s.GetPromptByName(ctx, promptName)
+	if err != nil {
+		return nil, err
+	}
+	return []*models.PromptResponse{prompt}, nil
+}
+
+func (s *fakeLocalPromptStore) GetCurrentLatestPromptVersion(ctx context.Context, promptName string) (*models.PromptResponse, error) {
+	return s.GetPromptByName(ctx, promptName)
+}
+
+func (s *fakeLocalPromptStore) CountPromptVersions(context.Context, string) (int, error) {
+	return 1, nil
+}
+
+func (s *fakeLocalPromptStore) CheckPromptVersionExists(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *fakeLocalPromptStore) UnmarkPromptAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeLocalPromptStore) DeletePrompt(context.Context, string, string) error {
+	return nil
+}
+
+func newLocalRuntimeServices(registry *fakeLocalPlatformRuntimeRegistry) (*serversvc.Service, *agentsvc.Service) {
+	return serversvc.New(serversvc.Dependencies{Servers: &fakeLocalServerStore{registry: registry}}), agentsvc.New(agentsvc.Dependencies{Agents: &fakeLocalAgentStore{registry: registry}, Prompts: &fakeLocalPromptStore{registry: registry}})
+}
+
 func TestUndeploy_RemovesLocalArtifactsWhenRegistryArtifactIsMissing(t *testing.T) {
 	tempDir := t.TempDir()
 	deployment := &models.Deployment{
@@ -214,8 +412,9 @@ func TestUndeploy_RemovesLocalArtifactsWhenRegistryArtifactIsMissing(t *testing.
 	registry.getAgentFn = func(context.Context, string, string) (*models.AgentResponse, error) {
 		return nil, database.ErrNotFound
 	}
+	serverService, agentService := newLocalRuntimeServices(registry)
 
-	adapter := NewLocalDeploymentAdapter(registry, registry, tempDir, 8080)
+	adapter := NewLocalDeploymentAdapter(serverService, agentService, tempDir, 8080)
 
 	originalComposeUp := runLocalComposeUp
 	originalRefresh := refreshLocalAgentMCPConfig
@@ -333,8 +532,9 @@ func TestUndeploy_CallsComposeDownWhenNoServicesRemain(t *testing.T) {
 	registry.getAgentFn = func(context.Context, string, string) (*models.AgentResponse, error) {
 		return nil, database.ErrNotFound
 	}
+	serverService, agentService := newLocalRuntimeServices(registry)
 
-	adapter := NewLocalDeploymentAdapter(registry, registry, tempDir, 8080)
+	adapter := NewLocalDeploymentAdapter(serverService, agentService, tempDir, 8080)
 
 	originalComposeUp := runLocalComposeUp
 	originalComposeDown := runLocalComposeDown
@@ -388,18 +588,20 @@ func TestDeploy_WritesPromptsConfig(t *testing.T) {
 				AgentManifest: models.AgentManifest{
 					Name:  name,
 					Image: "agent-image:latest",
+					Prompts: []models.PromptRef{{
+						RegistryPromptName: "system-prompt",
+					}},
 				},
 				Version: version,
 			},
 		}, nil
 	}
-	registry.resolvePromptsFn = func(_ context.Context, _ *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error) {
-		return []platformtypes.ResolvedPrompt{
-			{Name: "system-prompt", Content: "You are a helpful assistant."},
-		}, nil
+	registry.getPromptByNameFn = func(_ context.Context, promptName string) (*models.PromptResponse, error) {
+		return &models.PromptResponse{Prompt: models.PromptJSON{Name: promptName, Content: "You are a helpful assistant.", Version: "latest"}}, nil
 	}
+	serverService, agentService := newLocalRuntimeServices(registry)
 
-	adapter := NewLocalDeploymentAdapter(registry, registry, tempDir, 8080)
+	adapter := NewLocalDeploymentAdapter(serverService, agentService, tempDir, 8080)
 
 	originalComposeUp := runLocalComposeUp
 	originalRefresh := refreshLocalAgentMCPConfig

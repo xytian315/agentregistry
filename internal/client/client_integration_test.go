@@ -13,6 +13,11 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/api/router"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
+	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	promptsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/prompt"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
+	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/telemetry"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
@@ -368,6 +373,477 @@ func (f *fakeClientRegistry) CancelDeployment(ctx context.Context, deployment *m
 	return database.ErrNotFound
 }
 func (f *fakeClientRegistry) ReconcileAll(ctx context.Context) error { return nil }
+
+type fakeClientServerStore struct{ registry *fakeClientRegistry }
+
+func (s *fakeClientServerStore) DeleteServer(ctx context.Context, serverName, version string) error {
+	return s.registry.DeleteServer(ctx, serverName, version)
+}
+
+func (s *fakeClientServerStore) CreateServer(ctx context.Context, req *apiv0.ServerJSON, _ *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
+	return s.registry.CreateServer(ctx, req)
+}
+
+func (s *fakeClientServerStore) UpdateServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return s.registry.UpdateServer(ctx, serverName, version, req, nil)
+}
+
+func (s *fakeClientServerStore) SetServerStatus(context.Context, string, string, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeClientServerStore) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	return s.registry.ListServers(ctx, filter, cursor, limit)
+}
+
+func (s *fakeClientServerStore) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	server, err := s.registry.GetServerByName(ctx, serverName)
+	if err == nil {
+		return server, nil
+	}
+	return &apiv0.ServerResponse{Server: apiv0.ServerJSON{Name: serverName, Version: "latest"}}, nil
+}
+
+func (s *fakeClientServerStore) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	server, err := s.registry.GetServerByNameAndVersion(ctx, serverName, version)
+	if err == nil {
+		return server, nil
+	}
+	return &apiv0.ServerResponse{Server: apiv0.ServerJSON{Name: serverName, Version: version}}, nil
+}
+
+func (s *fakeClientServerStore) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	return s.registry.GetAllVersionsByServerName(ctx, serverName)
+}
+
+func (s *fakeClientServerStore) GetCurrentLatestVersion(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.registry.GetServerByName(ctx, serverName)
+}
+
+func (s *fakeClientServerStore) CountServerVersions(_ context.Context, serverName string) (int, error) {
+	count := 0
+	for _, server := range s.registry.Servers {
+		if server.Server.Name == serverName {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (s *fakeClientServerStore) CheckVersionExists(_ context.Context, serverName, version string) (bool, error) {
+	for _, server := range s.registry.Servers {
+		if server.Server.Name == serverName && server.Server.Version == version {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *fakeClientServerStore) UnmarkAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeClientServerStore) AcquireServerCreateLock(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeClientServerStore) SetServerEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (s *fakeClientServerStore) GetServerEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+func (s *fakeClientServerStore) UpsertServerReadme(ctx context.Context, readme *database.ServerReadme) error {
+	if readme == nil {
+		return nil
+	}
+	return s.registry.StoreServerReadme(ctx, readme.ServerName, readme.Version, readme.Content, readme.ContentType)
+}
+
+func (s *fakeClientServerStore) GetServerReadme(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
+	return s.registry.GetServerReadmeByVersion(ctx, serverName, version)
+}
+
+func (s *fakeClientServerStore) GetLatestServerReadme(ctx context.Context, serverName string) (*database.ServerReadme, error) {
+	return s.registry.GetServerReadmeLatest(ctx, serverName)
+}
+
+type fakeClientAgentStore struct{ registry *fakeClientRegistry }
+
+func (s *fakeClientAgentStore) CreateAgent(ctx context.Context, req *models.AgentJSON, _ *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
+	return s.registry.CreateAgent(ctx, req)
+}
+
+func (s *fakeClientAgentStore) UpdateAgent(context.Context, string, string, *models.AgentJSON) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeClientAgentStore) SetAgentStatus(context.Context, string, string, string) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeClientAgentStore) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	return s.registry.ListAgents(ctx, filter, cursor, limit)
+}
+
+func (s *fakeClientAgentStore) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	agent, err := s.registry.GetAgentByName(ctx, agentName)
+	if err == nil {
+		return agent, nil
+	}
+	return &models.AgentResponse{Agent: models.AgentJSON{AgentManifest: models.AgentManifest{Name: agentName}, Version: "latest"}}, nil
+}
+
+func (s *fakeClientAgentStore) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	agent, err := s.registry.GetAgentByNameAndVersion(ctx, agentName, version)
+	if err == nil {
+		return agent, nil
+	}
+	return &models.AgentResponse{Agent: models.AgentJSON{AgentManifest: models.AgentManifest{Name: agentName}, Version: version}}, nil
+}
+
+func (s *fakeClientAgentStore) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+	return s.registry.GetAllVersionsByAgentName(ctx, agentName)
+}
+
+func (s *fakeClientAgentStore) GetCurrentLatestAgentVersion(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.registry.GetAgentByName(ctx, agentName)
+}
+
+func (s *fakeClientAgentStore) CountAgentVersions(_ context.Context, agentName string) (int, error) {
+	count := 0
+	for _, agent := range s.registry.Agents {
+		if agent.Agent.Name == agentName {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (s *fakeClientAgentStore) CheckAgentVersionExists(_ context.Context, agentName, version string) (bool, error) {
+	for _, agent := range s.registry.Agents {
+		if agent.Agent.Name == agentName && agent.Agent.Version == version {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *fakeClientAgentStore) UnmarkAgentAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeClientAgentStore) DeleteAgent(ctx context.Context, agentName, version string) error {
+	return s.registry.DeleteAgent(ctx, agentName, version)
+}
+
+func (s *fakeClientAgentStore) SetAgentEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (s *fakeClientAgentStore) GetAgentEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+type fakeClientSkillStore struct{ registry *fakeClientRegistry }
+
+func (s *fakeClientSkillStore) CreateSkill(ctx context.Context, req *models.SkillJSON, _ *models.SkillRegistryExtensions) (*models.SkillResponse, error) {
+	return s.registry.CreateSkill(ctx, req)
+}
+
+func (s *fakeClientSkillStore) UpdateSkill(context.Context, string, string, *models.SkillJSON) (*models.SkillResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeClientSkillStore) SetSkillStatus(context.Context, string, string, string) (*models.SkillResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (s *fakeClientSkillStore) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+	return s.registry.ListSkills(ctx, filter, cursor, limit)
+}
+
+func (s *fakeClientSkillStore) GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error) {
+	return s.registry.GetSkillByName(ctx, skillName)
+}
+
+func (s *fakeClientSkillStore) GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error) {
+	return s.registry.GetSkillByNameAndVersion(ctx, skillName, version)
+}
+
+func (s *fakeClientSkillStore) GetAllVersionsBySkillName(ctx context.Context, skillName string) ([]*models.SkillResponse, error) {
+	return s.registry.GetAllVersionsBySkillName(ctx, skillName)
+}
+
+func (s *fakeClientSkillStore) GetCurrentLatestSkillVersion(ctx context.Context, skillName string) (*models.SkillResponse, error) {
+	return s.registry.GetSkillByName(ctx, skillName)
+}
+
+func (s *fakeClientSkillStore) CountSkillVersions(_ context.Context, skillName string) (int, error) {
+	count := 0
+	for _, skill := range s.registry.Skills {
+		if skill.Skill.Name == skillName {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (s *fakeClientSkillStore) CheckSkillVersionExists(_ context.Context, skillName, version string) (bool, error) {
+	for _, skill := range s.registry.Skills {
+		if skill.Skill.Name == skillName && skill.Skill.Version == version {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *fakeClientSkillStore) UnmarkSkillAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeClientSkillStore) DeleteSkill(ctx context.Context, skillName, version string) error {
+	return s.registry.DeleteSkill(ctx, skillName, version)
+}
+
+type fakeClientPromptStore struct{ registry *fakeClientRegistry }
+
+func (s *fakeClientPromptStore) CreatePrompt(ctx context.Context, req *models.PromptJSON, _ *models.PromptRegistryExtensions) (*models.PromptResponse, error) {
+	return s.registry.CreatePrompt(ctx, req)
+}
+
+func (s *fakeClientPromptStore) ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
+	return s.registry.ListPrompts(ctx, filter, cursor, limit)
+}
+
+func (s *fakeClientPromptStore) GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error) {
+	return s.registry.GetPromptByName(ctx, promptName)
+}
+
+func (s *fakeClientPromptStore) GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error) {
+	return s.registry.GetPromptByNameAndVersion(ctx, promptName, version)
+}
+
+func (s *fakeClientPromptStore) GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*models.PromptResponse, error) {
+	return s.registry.GetAllVersionsByPromptName(ctx, promptName)
+}
+
+func (s *fakeClientPromptStore) GetCurrentLatestPromptVersion(ctx context.Context, promptName string) (*models.PromptResponse, error) {
+	return s.registry.GetPromptByName(ctx, promptName)
+}
+
+func (s *fakeClientPromptStore) CountPromptVersions(_ context.Context, promptName string) (int, error) {
+	count := 0
+	for _, prompt := range s.registry.Prompts {
+		if prompt.Prompt.Name == promptName {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (s *fakeClientPromptStore) CheckPromptVersionExists(_ context.Context, promptName, version string) (bool, error) {
+	for _, prompt := range s.registry.Prompts {
+		if prompt.Prompt.Name == promptName && prompt.Prompt.Version == version {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *fakeClientPromptStore) UnmarkPromptAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (s *fakeClientPromptStore) DeletePrompt(ctx context.Context, promptName, version string) error {
+	return s.registry.DeletePrompt(ctx, promptName, version)
+}
+
+type fakeClientProviderStore struct{ registry *fakeClientRegistry }
+
+func (s *fakeClientProviderStore) CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
+	return s.registry.CreateProvider(ctx, in)
+}
+
+func (s *fakeClientProviderStore) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
+	return s.registry.ListProviders(ctx, platform)
+}
+
+func (s *fakeClientProviderStore) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	if s.registry.GetProviderByIDFn != nil {
+		return s.registry.GetProviderByID(ctx, providerID)
+	}
+	return &models.Provider{ID: providerID, Name: "Local provider", Platform: "local"}, nil
+}
+
+func (s *fakeClientProviderStore) UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error) {
+	return s.registry.UpdateProvider(ctx, providerID, in)
+}
+
+func (s *fakeClientProviderStore) DeleteProvider(ctx context.Context, providerID string) error {
+	return s.registry.DeleteProvider(ctx, providerID)
+}
+
+type fakeClientDeploymentStore struct {
+	registry         *fakeClientRegistry
+	deployments      map[string]*models.Deployment
+	nextDeploymentID int
+}
+
+func newFakeClientDeploymentStore(registry *fakeClientRegistry) *fakeClientDeploymentStore {
+	return &fakeClientDeploymentStore{registry: registry, deployments: map[string]*models.Deployment{}, nextDeploymentID: 1}
+}
+
+func (s *fakeClientDeploymentStore) CreateDeployment(ctx context.Context, req *models.Deployment) error {
+	created := req
+	if s.registry.CreateDeploymentFn != nil {
+		var err error
+		created, err = s.registry.CreateDeploymentFn(ctx, req)
+		if err != nil {
+			return err
+		}
+	}
+	if created == nil {
+		created = req
+	}
+	stored := *created
+	if stored.ID == "" {
+		stored.ID = "dep-created-" + strconv.Itoa(s.nextDeploymentID)
+		s.nextDeploymentID++
+	}
+	req.ID = stored.ID
+	s.deployments[stored.ID] = &stored
+	return nil
+}
+
+func (s *fakeClientDeploymentStore) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	if s.registry.GetDeploymentsFn != nil {
+		return s.registry.GetDeploymentsFn(ctx, filter)
+	}
+	deployments := make([]*models.Deployment, 0, len(s.deployments))
+	for _, deployment := range s.deployments {
+		deployments = append(deployments, deployment)
+	}
+	return deployments, nil
+}
+
+func (s *fakeClientDeploymentStore) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+	if s.registry.GetDeploymentByIDFn != nil {
+		return s.registry.GetDeploymentByIDFn(ctx, id)
+	}
+	if deployment, ok := s.deployments[id]; ok {
+		return deployment, nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (s *fakeClientDeploymentStore) UpdateDeploymentState(_ context.Context, id string, patch *models.DeploymentStatePatch) error {
+	deployment, ok := s.deployments[id]
+	if !ok {
+		return database.ErrNotFound
+	}
+	if patch.Status != nil {
+		deployment.Status = *patch.Status
+	}
+	if patch.Error != nil {
+		deployment.Error = *patch.Error
+	}
+	return nil
+}
+
+func (s *fakeClientDeploymentStore) RemoveDeploymentByID(ctx context.Context, id string) error {
+	if s.registry.RemoveDeploymentByIDFn != nil {
+		return s.registry.RemoveDeploymentByIDFn(ctx, id)
+	}
+	delete(s.deployments, id)
+	return nil
+}
+
+type fakeClientDeploymentAdapter struct{ registry *fakeClientRegistry }
+
+func (a *fakeClientDeploymentAdapter) Platform() string { return "local" }
+
+func (a *fakeClientDeploymentAdapter) SupportedResourceTypes() []string {
+	return []string{"mcp", "agent"}
+}
+
+func (a *fakeClientDeploymentAdapter) Deploy(ctx context.Context, deployment *models.Deployment) (*models.DeploymentActionResult, error) {
+	if deployment == nil {
+		return nil, database.ErrInvalidInput
+	}
+	if deployment.ResourceType == "agent" {
+		if a.registry.DeployAgentFn != nil {
+			result, err := a.registry.DeployAgentFn(ctx, deployment.ServerName, deployment.Version, deployment.Env, deployment.PreferRemote, deployment.ProviderID)
+			if err != nil {
+				return nil, err
+			}
+			if result != nil && result.Status != "" {
+				return &models.DeploymentActionResult{Status: result.Status}, nil
+			}
+		}
+	} else if a.registry.DeployServerFn != nil {
+		result, err := a.registry.DeployServerFn(ctx, deployment.ServerName, deployment.Version, deployment.Env, deployment.PreferRemote, deployment.ProviderID)
+		if err != nil {
+			return nil, err
+		}
+		if result != nil && result.Status != "" {
+			return &models.DeploymentActionResult{Status: result.Status}, nil
+		}
+	}
+	return &models.DeploymentActionResult{Status: models.DeploymentStatusDeployed}, nil
+}
+
+func (a *fakeClientDeploymentAdapter) Undeploy(context.Context, *models.Deployment) error {
+	return nil
+}
+
+func (a *fakeClientDeploymentAdapter) GetLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
+	if a.registry.GetDeploymentLogsFn != nil {
+		return a.registry.GetDeploymentLogsFn(ctx, deployment)
+	}
+	return nil, database.ErrNotFound
+}
+
+func (a *fakeClientDeploymentAdapter) Cancel(ctx context.Context, deployment *models.Deployment) error {
+	if a.registry.CancelDeploymentFn != nil {
+		return a.registry.CancelDeploymentFn(ctx, deployment)
+	}
+	return database.ErrNotFound
+}
+
+func (a *fakeClientDeploymentAdapter) Discover(context.Context, string) ([]*models.Deployment, error) {
+	return nil, nil
+}
+
+type fakeClientStore struct {
+	*fakeClientServerStore
+	*fakeClientAgentStore
+	*fakeClientSkillStore
+	*fakeClientPromptStore
+	*fakeClientProviderStore
+	*fakeClientDeploymentStore
+}
+
+func newFakeClientStore(registry *fakeClientRegistry) *fakeClientStore {
+	return &fakeClientStore{
+		fakeClientServerStore:     &fakeClientServerStore{registry: registry},
+		fakeClientAgentStore:      &fakeClientAgentStore{registry: registry},
+		fakeClientSkillStore:      &fakeClientSkillStore{registry: registry},
+		fakeClientPromptStore:     &fakeClientPromptStore{registry: registry},
+		fakeClientProviderStore:   &fakeClientProviderStore{registry: registry},
+		fakeClientDeploymentStore: newFakeClientDeploymentStore(registry),
+	}
+}
+
+func (s *fakeClientStore) InTransaction(ctx context.Context, fn func(context.Context, database.Store) error) error {
+	return fn(ctx, s)
+}
+
+func (s *fakeClientStore) Close() error {
+	return nil
+}
 
 func TestClientIntegration_PingAndVersion(t *testing.T) {
 	fake := newFakeClientRegistry()
@@ -885,7 +1361,31 @@ func newClientWithInProcessServer(t *testing.T, fake *fakeClientRegistry) (*Clie
 		},
 	}
 
-	router.NewHumaAPI(cfg, fake, fake, fake, fake, fake, fake, mux, metrics, versionInfo, nil, nil, routeOpts)
+	store := newFakeClientStore(fake)
+	deploymentAdapter := &fakeClientDeploymentAdapter{registry: fake}
+
+	router.NewHumaAPI(
+		cfg,
+		serversvc.New(serversvc.Dependencies{StoreDB: store, Servers: store, Config: cfg}),
+		agentsvc.New(agentsvc.Dependencies{StoreDB: store, Agents: store, Config: cfg}),
+		skillsvc.New(skillsvc.Dependencies{StoreDB: store, Skills: store}),
+		promptsvc.New(promptsvc.Dependencies{StoreDB: store, Prompts: store}),
+		store,
+		deploymentsvc.New(deploymentsvc.Dependencies{
+			StoreDB:            store,
+			Providers:          store,
+			Servers:            store,
+			Agents:             store,
+			Deployments:        store,
+			DeploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{"local": deploymentAdapter},
+		}),
+		mux,
+		metrics,
+		versionInfo,
+		nil,
+		nil,
+		routeOpts,
+	)
 	server := httptest.NewServer(mux)
 
 	client := NewClient(server.URL+"/v0", "test-token")
