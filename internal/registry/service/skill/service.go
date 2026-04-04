@@ -26,12 +26,12 @@ type Registry interface {
 }
 
 type Dependencies struct {
-	StoreDB database.ServiceDatabase
+	StoreDB database.Store
 	Skills  database.SkillStore
 }
 
 type Service struct {
-	storeDB database.ServiceDatabase
+	storeDB database.Store
 	skills  database.SkillStore
 }
 

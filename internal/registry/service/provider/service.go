@@ -17,7 +17,7 @@ type Registry interface {
 }
 
 type Dependencies struct {
-	StoreDB   database.ServiceDatabase
+	StoreDB   database.Store
 	Providers database.ProviderStore
 }
 

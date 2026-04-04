@@ -19,6 +19,7 @@ import (
 type PostgreSQL struct {
 	pool  *pgxpool.Pool
 	authz auth.Authorizer
+	tx    pgx.Tx
 }
 
 type commandTagAdapter struct {
@@ -113,9 +114,9 @@ type Executor interface {
 }
 
 // getExecutor returns the appropriate executor (transaction or pool)
-func (db *PostgreSQL) getExecutor(tx database.Transaction) Executor {
-	if tx != nil {
-		return tx
+func (db *PostgreSQL) getExecutor() Executor {
+	if db.tx != nil {
+		return transactionAdapter{tx: db.tx}
 	}
 	return poolExecutor{pool: db.pool}
 }
@@ -164,16 +165,16 @@ func NewPostgreSQL(ctx context.Context, connectionURI string, authz auth.Authori
 		}
 	}
 
-	return &PostgreSQL{
-		pool:  pool,
-		authz: authz,
-	}, nil
+	return &PostgreSQL{pool: pool, authz: authz}, nil
 }
 
 // InTransaction executes a function within a database transaction
-func (db *PostgreSQL) InTransaction(ctx context.Context, fn func(ctx context.Context, tx database.Transaction) error) error {
+func (db *PostgreSQL) InTransaction(ctx context.Context, fn func(ctx context.Context, store database.Store) error) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+	if db.tx != nil {
+		return fn(ctx, db)
 	}
 
 	tx, err := db.pool.Begin(ctx)
@@ -189,7 +190,8 @@ func (db *PostgreSQL) InTransaction(ctx context.Context, fn func(ctx context.Con
 		}
 	}()
 
-	if err := fn(ctx, transactionAdapter{tx: tx}); err != nil {
+	txStore := &PostgreSQL{pool: db.pool, authz: db.authz, tx: tx}
+	if err := fn(ctx, txStore); err != nil {
 		return err
 	}
 

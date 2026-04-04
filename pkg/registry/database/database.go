@@ -123,194 +123,122 @@ type Row interface {
 	Scan(dest ...any) error
 }
 
-// Transaction defines the query surface repository methods need from a database transaction.
-type Transaction interface {
-	Exec(ctx context.Context, sql string, arguments ...any) (CommandTag, error)
-	Query(ctx context.Context, sql string, args ...any) (Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) Row
+type ServerStore interface {
+	DeleteServer(ctx context.Context, serverName, version string) error
+	CreateServer(ctx context.Context, serverJSON *apiv0.ServerJSON, officialMeta *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error)
+	UpdateServer(ctx context.Context, serverName, version string, serverJSON *apiv0.ServerJSON) (*apiv0.ServerResponse, error)
+	SetServerStatus(ctx context.Context, serverName, version, status string) (*apiv0.ServerResponse, error)
+	ListServers(ctx context.Context, filter *ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
+	GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error)
+	GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error)
+	GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error)
+	GetCurrentLatestVersion(ctx context.Context, serverName string) (*apiv0.ServerResponse, error)
+	CountServerVersions(ctx context.Context, serverName string) (int, error)
+	CheckVersionExists(ctx context.Context, serverName, version string) (bool, error)
+	UnmarkAsLatest(ctx context.Context, serverName string) error
+	AcquireServerCreateLock(ctx context.Context, serverName string) error
+	SetServerEmbedding(ctx context.Context, serverName, version string, embedding *SemanticEmbedding) error
+	GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*SemanticEmbeddingMetadata, error)
+	UpsertServerReadme(ctx context.Context, readme *ServerReadme) error
+	GetServerReadme(ctx context.Context, serverName, version string) (*ServerReadme, error)
+	GetLatestServerReadme(ctx context.Context, serverName string) (*ServerReadme, error)
 }
 
-// ServerRepository defines server persistence operations.
-type ServerRepository interface {
-	// DeleteServer permanently removes a server version from the database
-	DeleteServer(ctx context.Context, tx Transaction, serverName, version string) error
-	// CreateServer inserts a new server version with official metadata
-	CreateServer(ctx context.Context, tx Transaction, serverJSON *apiv0.ServerJSON, officialMeta *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error)
-	// UpdateServer updates an existing server record
-	UpdateServer(ctx context.Context, tx Transaction, serverName, version string, serverJSON *apiv0.ServerJSON) (*apiv0.ServerResponse, error)
-	// SetServerStatus updates the status of a specific server version
-	SetServerStatus(ctx context.Context, tx Transaction, serverName, version string, status string) (*apiv0.ServerResponse, error)
-	// ListServers retrieve server entries with optional filtering
-	ListServers(ctx context.Context, tx Transaction, filter *ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
-	// GetServerByName retrieve a single server by its name
-	GetServerByName(ctx context.Context, tx Transaction, serverName string) (*apiv0.ServerResponse, error)
-	// GetServerByNameAndVersion retrieve specific version of a server by server name and version
-	GetServerByNameAndVersion(ctx context.Context, tx Transaction, serverName string, version string) (*apiv0.ServerResponse, error)
-	// GetAllVersionsByServerName retrieve all versions of a server by server name
-	GetAllVersionsByServerName(ctx context.Context, tx Transaction, serverName string) ([]*apiv0.ServerResponse, error)
-	// GetCurrentLatestVersion retrieve the current latest version of a server by server name
-	GetCurrentLatestVersion(ctx context.Context, tx Transaction, serverName string) (*apiv0.ServerResponse, error)
-	// CountServerVersions count the number of versions for a server
-	CountServerVersions(ctx context.Context, tx Transaction, serverName string) (int, error)
-	// CheckVersionExists check if a specific version exists for a server
-	CheckVersionExists(ctx context.Context, tx Transaction, serverName, version string) (bool, error)
-	// UnmarkAsLatest marks the current latest version of a server as no longer latest
-	UnmarkAsLatest(ctx context.Context, tx Transaction, serverName string) error
-	// AcquireServerCreateLock acquires a transaction-scoped advisory lock for creating a server version.
-	AcquireServerCreateLock(ctx context.Context, tx Transaction, serverName string) error
-	// SetServerEmbedding upserts the semantic embedding metadata for a server version
-	SetServerEmbedding(ctx context.Context, tx Transaction, serverName, version string, embedding *SemanticEmbedding) error
-	// GetServerEmbeddingMetadata returns metadata about a server's embedding without loading the vector
-	GetServerEmbeddingMetadata(ctx context.Context, tx Transaction, serverName, version string) (*SemanticEmbeddingMetadata, error)
-	// UpsertServerReadme stores or updates a README blob for a server version
-	UpsertServerReadme(ctx context.Context, tx Transaction, readme *ServerReadme) error
-	// GetServerReadme retrieves the README blob for a specific server version
-	GetServerReadme(ctx context.Context, tx Transaction, serverName, version string) (*ServerReadme, error)
-	// GetLatestServerReadme retrieves the README blob for the latest server version
-	GetLatestServerReadme(ctx context.Context, tx Transaction, serverName string) (*ServerReadme, error)
+type ProviderStore interface {
+	CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error)
+	ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error)
+	GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error)
+	UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
+	DeleteProvider(ctx context.Context, providerID string) error
 }
 
-// ProviderRepository defines provider persistence operations.
-type ProviderRepository interface {
-	// CreateProvider creates a new provider record.
-	CreateProvider(ctx context.Context, tx Transaction, in *models.CreateProviderInput) (*models.Provider, error)
-	// ListProviders lists provider records, optionally filtered by platform.
-	ListProviders(ctx context.Context, tx Transaction, platform *string) ([]*models.Provider, error)
-	// GetProviderByID returns a provider by ID.
-	GetProviderByID(ctx context.Context, tx Transaction, providerID string) (*models.Provider, error)
-	// UpdateProvider updates mutable provider fields.
-	UpdateProvider(ctx context.Context, tx Transaction, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
-	// DeleteProvider removes a provider by ID.
-	DeleteProvider(ctx context.Context, tx Transaction, providerID string) error
+type AgentStore interface {
+	CreateAgent(ctx context.Context, agentJSON *models.AgentJSON, officialMeta *models.AgentRegistryExtensions) (*models.AgentResponse, error)
+	UpdateAgent(ctx context.Context, agentName, version string, agentJSON *models.AgentJSON) (*models.AgentResponse, error)
+	SetAgentStatus(ctx context.Context, agentName, version, status string) (*models.AgentResponse, error)
+	ListAgents(ctx context.Context, filter *AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
+	GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error)
+	GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
+	GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error)
+	GetCurrentLatestAgentVersion(ctx context.Context, agentName string) (*models.AgentResponse, error)
+	CountAgentVersions(ctx context.Context, agentName string) (int, error)
+	CheckAgentVersionExists(ctx context.Context, agentName, version string) (bool, error)
+	UnmarkAgentAsLatest(ctx context.Context, agentName string) error
+	DeleteAgent(ctx context.Context, agentName, version string) error
+	SetAgentEmbedding(ctx context.Context, agentName, version string, embedding *SemanticEmbedding) error
+	GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*SemanticEmbeddingMetadata, error)
 }
 
-// AgentRepository defines agent persistence operations.
-type AgentRepository interface {
-	// CreateAgent inserts a new agent version with official metadata
-	CreateAgent(ctx context.Context, tx Transaction, agentJSON *models.AgentJSON, officialMeta *models.AgentRegistryExtensions) (*models.AgentResponse, error)
-	// UpdateAgent updates an existing agent record
-	UpdateAgent(ctx context.Context, tx Transaction, agentName, version string, agentJSON *models.AgentJSON) (*models.AgentResponse, error)
-	// SetAgentStatus updates the status of a specific agent version
-	SetAgentStatus(ctx context.Context, tx Transaction, agentName, version string, status string) (*models.AgentResponse, error)
-	// ListAgents retrieve agent entries with optional filtering
-	ListAgents(ctx context.Context, tx Transaction, filter *AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
-	// GetAgentByName retrieve a single agent by its name (latest)
-	GetAgentByName(ctx context.Context, tx Transaction, agentName string) (*models.AgentResponse, error)
-	// GetAgentByNameAndVersion retrieve specific version of an agent by name and version
-	GetAgentByNameAndVersion(ctx context.Context, tx Transaction, agentName string, version string) (*models.AgentResponse, error)
-	// GetAllVersionsByAgentName retrieve all versions of an agent
-	GetAllVersionsByAgentName(ctx context.Context, tx Transaction, agentName string) ([]*models.AgentResponse, error)
-	// GetCurrentLatestAgentVersion retrieve current latest version of an agent
-	GetCurrentLatestAgentVersion(ctx context.Context, tx Transaction, agentName string) (*models.AgentResponse, error)
-	// CountAgentVersions count the number of versions for an agent
-	CountAgentVersions(ctx context.Context, tx Transaction, agentName string) (int, error)
-	// CheckAgentVersionExists check if a specific version exists for an agent
-	CheckAgentVersionExists(ctx context.Context, tx Transaction, agentName, version string) (bool, error)
-	// UnmarkAgentAsLatest marks the current latest version of an agent as no longer latest
-	UnmarkAgentAsLatest(ctx context.Context, tx Transaction, agentName string) error
-	// DeleteAgent permanently removes an agent version from the database
-	DeleteAgent(ctx context.Context, tx Transaction, agentName, version string) error
-	// SetAgentEmbedding upserts the semantic embedding metadata for an agent version
-	SetAgentEmbedding(ctx context.Context, tx Transaction, agentName, version string, embedding *SemanticEmbedding) error
-	// GetAgentEmbeddingMetadata returns metadata about an agent's embedding without loading the vector
-	GetAgentEmbeddingMetadata(ctx context.Context, tx Transaction, agentName, version string) (*SemanticEmbeddingMetadata, error)
+type SkillStore interface {
+	CreateSkill(ctx context.Context, skillJSON *models.SkillJSON, officialMeta *models.SkillRegistryExtensions) (*models.SkillResponse, error)
+	UpdateSkill(ctx context.Context, skillName, version string, skillJSON *models.SkillJSON) (*models.SkillResponse, error)
+	SetSkillStatus(ctx context.Context, skillName, version, status string) (*models.SkillResponse, error)
+	ListSkills(ctx context.Context, filter *SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error)
+	GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error)
+	GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error)
+	GetAllVersionsBySkillName(ctx context.Context, skillName string) ([]*models.SkillResponse, error)
+	GetCurrentLatestSkillVersion(ctx context.Context, skillName string) (*models.SkillResponse, error)
+	CountSkillVersions(ctx context.Context, skillName string) (int, error)
+	CheckSkillVersionExists(ctx context.Context, skillName, version string) (bool, error)
+	UnmarkSkillAsLatest(ctx context.Context, skillName string) error
+	DeleteSkill(ctx context.Context, skillName, version string) error
 }
 
-// SkillRepository defines skill persistence operations.
-type SkillRepository interface {
-	// CreateSkill inserts a new skill version with official metadata
-	CreateSkill(ctx context.Context, tx Transaction, skillJSON *models.SkillJSON, officialMeta *models.SkillRegistryExtensions) (*models.SkillResponse, error)
-	// UpdateSkill updates an existing skill record
-	UpdateSkill(ctx context.Context, tx Transaction, skillName, version string, skillJSON *models.SkillJSON) (*models.SkillResponse, error)
-	// SetSkillStatus updates the status of a specific skill version
-	SetSkillStatus(ctx context.Context, tx Transaction, skillName, version string, status string) (*models.SkillResponse, error)
-	// ListSkills retrieve skill entries with optional filtering
-	ListSkills(ctx context.Context, tx Transaction, filter *SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error)
-	// GetSkillByName retrieve a single skill by its name (latest)
-	GetSkillByName(ctx context.Context, tx Transaction, skillName string) (*models.SkillResponse, error)
-	// GetSkillByNameAndVersion retrieve specific version of a skill by name and version
-	GetSkillByNameAndVersion(ctx context.Context, tx Transaction, skillName string, version string) (*models.SkillResponse, error)
-	// GetAllVersionsBySkillName retrieve all versions of a skill
-	GetAllVersionsBySkillName(ctx context.Context, tx Transaction, skillName string) ([]*models.SkillResponse, error)
-	// GetCurrentLatestSkillVersion retrieve current latest version of a skill
-	GetCurrentLatestSkillVersion(ctx context.Context, tx Transaction, skillName string) (*models.SkillResponse, error)
-	// CountSkillVersions count the number of versions for a skill
-	CountSkillVersions(ctx context.Context, tx Transaction, skillName string) (int, error)
-	// CheckSkillVersionExists check if a specific version exists for a skill
-	CheckSkillVersionExists(ctx context.Context, tx Transaction, skillName, version string) (bool, error)
-	// UnmarkSkillAsLatest marks the current latest version of a skill as no longer latest
-	UnmarkSkillAsLatest(ctx context.Context, tx Transaction, skillName string) error
-	// DeleteSkill permanently removes a skill version from the database
-	DeleteSkill(ctx context.Context, tx Transaction, skillName, version string) error
+type PromptStore interface {
+	CreatePrompt(ctx context.Context, promptJSON *models.PromptJSON, officialMeta *models.PromptRegistryExtensions) (*models.PromptResponse, error)
+	ListPrompts(ctx context.Context, filter *PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error)
+	GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error)
+	GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error)
+	GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*models.PromptResponse, error)
+	GetCurrentLatestPromptVersion(ctx context.Context, promptName string) (*models.PromptResponse, error)
+	CountPromptVersions(ctx context.Context, promptName string) (int, error)
+	CheckPromptVersionExists(ctx context.Context, promptName, version string) (bool, error)
+	UnmarkPromptAsLatest(ctx context.Context, promptName string) error
+	DeletePrompt(ctx context.Context, promptName, version string) error
 }
 
-// PromptRepository defines prompt persistence operations.
-type PromptRepository interface {
-	// CreatePrompt inserts a new prompt version with official metadata
-	CreatePrompt(ctx context.Context, tx Transaction, promptJSON *models.PromptJSON, officialMeta *models.PromptRegistryExtensions) (*models.PromptResponse, error)
-	// ListPrompts retrieve prompt entries with optional filtering
-	ListPrompts(ctx context.Context, tx Transaction, filter *PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error)
-	// GetPromptByName retrieve a single prompt by its name (latest)
-	GetPromptByName(ctx context.Context, tx Transaction, promptName string) (*models.PromptResponse, error)
-	// GetPromptByNameAndVersion retrieve specific version of a prompt by name and version
-	GetPromptByNameAndVersion(ctx context.Context, tx Transaction, promptName string, version string) (*models.PromptResponse, error)
-	// GetAllVersionsByPromptName retrieve all versions of a prompt
-	GetAllVersionsByPromptName(ctx context.Context, tx Transaction, promptName string) ([]*models.PromptResponse, error)
-	// GetCurrentLatestPromptVersion retrieve current latest version of a prompt
-	GetCurrentLatestPromptVersion(ctx context.Context, tx Transaction, promptName string) (*models.PromptResponse, error)
-	// CountPromptVersions count the number of versions for a prompt
-	CountPromptVersions(ctx context.Context, tx Transaction, promptName string) (int, error)
-	// CheckPromptVersionExists check if a specific version exists for a prompt
-	CheckPromptVersionExists(ctx context.Context, tx Transaction, promptName, version string) (bool, error)
-	// UnmarkPromptAsLatest marks the current latest version of a prompt as no longer latest
-	UnmarkPromptAsLatest(ctx context.Context, tx Transaction, promptName string) error
-	// DeletePrompt permanently removes a prompt version from the database
-	DeletePrompt(ctx context.Context, tx Transaction, promptName, version string) error
+type DeploymentStore interface {
+	CreateDeployment(ctx context.Context, deployment *models.Deployment) error
+	GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error)
+	UpdateDeploymentState(ctx context.Context, id string, patch *models.DeploymentStatePatch) error
+	RemoveDeploymentByID(ctx context.Context, id string) error
 }
 
-// DeploymentRepository defines deployment persistence operations.
-type DeploymentRepository interface {
-	// CreateDeployment creates a new deployment record
-	CreateDeployment(ctx context.Context, tx Transaction, deployment *models.Deployment) error
-	// GetDeployments retrieves all deployed servers
-	GetDeployments(ctx context.Context, tx Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error)
-	// GetDeploymentByID retrieves a specific deployment by UUID.
-	GetDeploymentByID(ctx context.Context, tx Transaction, id string) (*models.Deployment, error)
-	// UpdateDeploymentState applies a partial state patch to a deployment by ID.
-	UpdateDeploymentState(ctx context.Context, tx Transaction, id string, patch *models.DeploymentStatePatch) error
-	// RemoveDeploymentByID removes a deployment by ID.
-	RemoveDeploymentByID(ctx context.Context, tx Transaction, id string) error
-}
-
-// Database defines the interface for database operations
-type Database interface {
-	ServerRepository
-	// InTransaction executes a function within a database transaction
-	InTransaction(ctx context.Context, fn func(ctx context.Context, tx Transaction) error) error
-	// Close closes the database connection
+// Store is the single public persistence contract used by services.
+// Implementations hide transaction handling internally and pass a transaction-bound
+// Store into InTransaction callbacks.
+type Store interface {
+	ServerStore
+	AgentStore
+	SkillStore
+	PromptStore
+	ProviderStore
+	DeploymentStore
+	InTransaction(ctx context.Context, fn func(context.Context, Store) error) error
 	Close() error
-
-	AgentRepository
-	SkillRepository
-	PromptRepository
-
-	ProviderRepository
-	DeploymentRepository
 }
 
-// InTransactionT is a generic helper that wraps InTransaction for functions returning a value
-// This exists because Go does not support generic methods on interfaces - only the Database interface
-// method InTransaction (without generics) can exist, so we provide this generic wrapper function.
-// This is a common pattern in Go for working around this language limitation.
-func InTransactionT[T any](ctx context.Context, db Database, fn func(ctx context.Context, tx Transaction) (T, error)) (T, error) {
+// Database is retained as a compatibility alias while callers migrate to Store.
+type Database = Store
+
+var ErrStoreNotConfigured = errors.New("store is not configured")
+
+func InTransaction(ctx context.Context, store Store, fn func(context.Context, Store) error) error {
+	if store == nil {
+		return ErrStoreNotConfigured
+	}
+	return store.InTransaction(ctx, fn)
+}
+
+func InTransactionT[T any](ctx context.Context, store Store, fn func(context.Context, Store) (T, error)) (T, error) {
 	var result T
 	var fnErr error
 
-	err := db.InTransaction(ctx, func(txCtx context.Context, tx Transaction) error {
-		result, fnErr = fn(txCtx, tx)
+	err := InTransaction(ctx, store, func(txCtx context.Context, txStore Store) error {
+		result, fnErr = fn(txCtx, txStore)
 		return fnErr
 	})
-
 	if err != nil {
 		var zero T
 		return zero, err

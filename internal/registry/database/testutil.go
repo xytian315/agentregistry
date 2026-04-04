@@ -212,8 +212,8 @@ func NewTestDB(t *testing.T, opts ...testDBOption) regdb.Database {
 	return db
 }
 
-// NewTestServiceDB wraps a test database with the service-facing store contract.
-func NewTestServiceDB(t *testing.T, opts ...testDBOption) regdb.ServiceDatabase {
+// NewTestServiceDB returns a test store.
+func NewTestServiceDB(t *testing.T, opts ...testDBOption) regdb.Store {
 	t.Helper()
-	return regdb.NewServiceDatabase(NewTestDB(t, opts...))
+	return NewTestDB(t, opts...)
 }

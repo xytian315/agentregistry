@@ -37,7 +37,7 @@ type Registry interface {
 }
 
 type Dependencies struct {
-	StoreDB            database.ServiceDatabase
+	StoreDB            database.Store
 	Agents             database.AgentStore
 	Skills             database.SkillStore
 	Prompts            database.PromptStore
@@ -47,7 +47,7 @@ type Dependencies struct {
 }
 
 type Service struct {
-	storeDB            database.ServiceDatabase
+	storeDB            database.Store
 	agents             database.AgentStore
 	skills             database.SkillStore
 	prompts            database.PromptStore

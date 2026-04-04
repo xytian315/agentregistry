@@ -16,7 +16,7 @@ import (
 )
 
 // CreateDeployment creates a new deployment record
-func (db *PostgreSQL) CreateDeployment(ctx context.Context, tx database.Transaction, deployment *models.Deployment) error {
+func (db *PostgreSQL) CreateDeployment(ctx context.Context, deployment *models.Deployment) error {
 	// Authz check (determine resource type)
 	artifactType := auth.PermissionArtifactTypeServer
 	if deployment.ResourceType == "agent" {
@@ -29,7 +29,7 @@ func (db *PostgreSQL) CreateDeployment(ctx context.Context, tx database.Transact
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	envJSON, err := json.Marshal(deployment.Env)
 	if err != nil {
@@ -61,7 +61,7 @@ func (db *PostgreSQL) CreateDeployment(ctx context.Context, tx database.Transact
 	deployment.ProviderID = providerID
 
 	if deployment.ID == "" {
-		_ = db.getExecutor(tx).QueryRow(ctx, "SELECT uuid_generate_v4()::text").Scan(&deployment.ID)
+		_ = db.getExecutor().QueryRow(ctx, "SELECT uuid_generate_v4()::text").Scan(&deployment.ID)
 	}
 
 	query := `
@@ -98,8 +98,8 @@ func (db *PostgreSQL) CreateDeployment(ctx context.Context, tx database.Transact
 }
 
 // GetDeployments retrieves all deployed servers
-func (db *PostgreSQL) GetDeployments(ctx context.Context, tx database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
-	executor := db.getExecutor(tx)
+func (db *PostgreSQL) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	executor := db.getExecutor()
 
 	where, args, needsProviderJoin := buildDeploymentFilters(filter)
 
@@ -218,8 +218,8 @@ func buildDeploymentFilters(filter *models.DeploymentFilter) ([]string, []any, b
 }
 
 // GetDeploymentByID retrieves a specific deployment by UUID.
-func (db *PostgreSQL) GetDeploymentByID(ctx context.Context, tx database.Transaction, id string) (*models.Deployment, error) {
-	executor := db.getExecutor(tx)
+func (db *PostgreSQL) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+	executor := db.getExecutor()
 	query := `SELECT
 			id, server_name, version, deployed_at, updated_at, status, config, prefer_remote, resource_type,
 			origin, COALESCE(provider_id, ''), COALESCE(provider_config, '{}'::jsonb), COALESCE(provider_metadata, '{}'::jsonb), COALESCE(error, '')
@@ -280,12 +280,12 @@ func (db *PostgreSQL) GetDeploymentByID(ctx context.Context, tx database.Transac
 }
 
 // UpdateDeploymentState applies partial state updates to a deployment by ID.
-func (db *PostgreSQL) UpdateDeploymentState(ctx context.Context, tx database.Transaction, id string, patch *models.DeploymentStatePatch) error {
+func (db *PostgreSQL) UpdateDeploymentState(ctx context.Context, id string, patch *models.DeploymentStatePatch) error {
 	if patch == nil {
 		return fmt.Errorf("%w: deployment state patch is required", database.ErrInvalidInput)
 	}
 
-	deployment, err := db.GetDeploymentByID(ctx, tx, id)
+	deployment, err := db.GetDeploymentByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -300,7 +300,7 @@ func (db *PostgreSQL) UpdateDeploymentState(ctx context.Context, tx database.Tra
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	setStatus := patch.Status != nil
 	statusValue := deployment.Status
 	if patch.Status != nil {
@@ -367,8 +367,8 @@ func (db *PostgreSQL) UpdateDeploymentState(ctx context.Context, tx database.Tra
 }
 
 // RemoveDeploymentByID removes a deployment by UUID.
-func (db *PostgreSQL) RemoveDeploymentByID(ctx context.Context, tx database.Transaction, id string) error {
-	deployment, err := db.GetDeploymentByID(ctx, tx, id)
+func (db *PostgreSQL) RemoveDeploymentByID(ctx context.Context, id string) error {
+	deployment, err := db.GetDeploymentByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -383,7 +383,7 @@ func (db *PostgreSQL) RemoveDeploymentByID(ctx context.Context, tx database.Tran
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `DELETE FROM deployments WHERE id = $1`
 
 	result, err := executor.Exec(ctx, query, id)

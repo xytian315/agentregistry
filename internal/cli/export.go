@@ -13,7 +13,6 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/exporter"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
-	regdb "github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	"github.com/spf13/cobra"
 )
 
@@ -52,8 +51,7 @@ var ExportCmd = &cobra.Command{
 			}
 		}()
 
-		serviceDB := regdb.NewServiceDatabase(db)
-		serverService := serversvc.New(serversvc.Dependencies{StoreDB: serviceDB, Config: cfg})
+		serverService := serversvc.New(serversvc.Dependencies{StoreDB: db, Config: cfg})
 		exporterService := exporter.NewService(serverService)
 
 		exportCtx := cmd.Context()

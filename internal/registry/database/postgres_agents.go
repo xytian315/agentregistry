@@ -18,7 +18,7 @@ import (
 )
 
 // ListAgents returns paginated agents with filtering
-func (db *PostgreSQL) ListAgents(ctx context.Context, tx database.Transaction, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+func (db *PostgreSQL) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -130,7 +130,7 @@ func (db *PostgreSQL) ListAgents(ctx context.Context, tx database.Transaction, f
 	`, selectClause, whereClause, orderClause, argIndex)
 	args = append(args, limit)
 
-	rows, err := db.getExecutor(tx).Query(ctx, query, args...)
+	rows, err := db.getExecutor().Query(ctx, query, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to query agents: %w", err)
 	}
@@ -190,7 +190,7 @@ func (db *PostgreSQL) ListAgents(ctx context.Context, tx database.Transaction, f
 	return results, nextCursor, nil
 }
 
-func (db *PostgreSQL) GetAgentByName(ctx context.Context, tx database.Transaction, agentName string) (*models.AgentResponse, error) {
+func (db *PostgreSQL) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -214,7 +214,7 @@ func (db *PostgreSQL) GetAgentByName(ctx context.Context, tx database.Transactio
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
 	var valueJSON []byte
-	if err := db.getExecutor(tx).QueryRow(ctx, query, agentName).Scan(&name, &version, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, agentName).Scan(&name, &version, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -237,7 +237,7 @@ func (db *PostgreSQL) GetAgentByName(ctx context.Context, tx database.Transactio
 	}, nil
 }
 
-func (db *PostgreSQL) GetAgentByNameAndVersion(ctx context.Context, tx database.Transaction, agentName, version string) (*models.AgentResponse, error) {
+func (db *PostgreSQL) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -260,7 +260,7 @@ func (db *PostgreSQL) GetAgentByNameAndVersion(ctx context.Context, tx database.
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
 	var valueJSON []byte
-	if err := db.getExecutor(tx).QueryRow(ctx, query, agentName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, agentName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -283,7 +283,7 @@ func (db *PostgreSQL) GetAgentByNameAndVersion(ctx context.Context, tx database.
 	}, nil
 }
 
-func (db *PostgreSQL) GetAllVersionsByAgentName(ctx context.Context, tx database.Transaction, agentName string) ([]*models.AgentResponse, error) {
+func (db *PostgreSQL) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -301,7 +301,7 @@ func (db *PostgreSQL) GetAllVersionsByAgentName(ctx context.Context, tx database
 		WHERE agent_name = $1
 		ORDER BY published_at DESC
 	`
-	rows, err := db.getExecutor(tx).Query(ctx, query, agentName)
+	rows, err := db.getExecutor().Query(ctx, query, agentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query agent versions: %w", err)
 	}
@@ -340,7 +340,7 @@ func (db *PostgreSQL) GetAllVersionsByAgentName(ctx context.Context, tx database
 	return results, nil
 }
 
-func (db *PostgreSQL) CreateAgent(ctx context.Context, tx database.Transaction, agentJSON *models.AgentJSON, officialMeta *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
+func (db *PostgreSQL) CreateAgent(ctx context.Context, agentJSON *models.AgentJSON, officialMeta *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -366,7 +366,7 @@ func (db *PostgreSQL) CreateAgent(ctx context.Context, tx database.Transaction, 
 		INSERT INTO agents (agent_name, version, status, published_at, updated_at, is_latest, value)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	if _, err := db.getExecutor(tx).Exec(ctx, insert,
+	if _, err := db.getExecutor().Exec(ctx, insert,
 		agentJSON.Name,
 		agentJSON.Version,
 		officialMeta.Status,
@@ -385,7 +385,7 @@ func (db *PostgreSQL) CreateAgent(ctx context.Context, tx database.Transaction, 
 	}, nil
 }
 
-func (db *PostgreSQL) UpdateAgent(ctx context.Context, tx database.Transaction, agentName, version string, agentJSON *models.AgentJSON) (*models.AgentResponse, error) {
+func (db *PostgreSQL) UpdateAgent(ctx context.Context, agentName, version string, agentJSON *models.AgentJSON) (*models.AgentResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -416,7 +416,7 @@ func (db *PostgreSQL) UpdateAgent(ctx context.Context, tx database.Transaction, 
 	var name, vers, status string
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
-	if err := db.getExecutor(tx).QueryRow(ctx, query, valueJSON, agentName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, valueJSON, agentName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -435,7 +435,7 @@ func (db *PostgreSQL) UpdateAgent(ctx context.Context, tx database.Transaction, 
 	}, nil
 }
 
-func (db *PostgreSQL) SetAgentStatus(ctx context.Context, tx database.Transaction, agentName, version string, status string) (*models.AgentResponse, error) {
+func (db *PostgreSQL) SetAgentStatus(ctx context.Context, agentName, version string, status string) (*models.AgentResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -457,7 +457,7 @@ func (db *PostgreSQL) SetAgentStatus(ctx context.Context, tx database.Transactio
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
 	var valueJSON []byte
-	if err := db.getExecutor(tx).QueryRow(ctx, query, status, agentName, version).Scan(&name, &vers, &currentStatus, &valueJSON, &publishedAt, &updatedAt, &isLatest); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, status, agentName, version).Scan(&name, &vers, &currentStatus, &valueJSON, &publishedAt, &updatedAt, &isLatest); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -480,7 +480,7 @@ func (db *PostgreSQL) SetAgentStatus(ctx context.Context, tx database.Transactio
 	}, nil
 }
 
-func (db *PostgreSQL) GetCurrentLatestAgentVersion(ctx context.Context, tx database.Transaction, agentName string) (*models.AgentResponse, error) {
+func (db *PostgreSQL) GetCurrentLatestAgentVersion(ctx context.Context, agentName string) (*models.AgentResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -492,7 +492,7 @@ func (db *PostgreSQL) GetCurrentLatestAgentVersion(ctx context.Context, tx datab
 		return nil, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `
 		SELECT agent_name, version, status, value, published_at, updated_at, is_latest
 		FROM agents
@@ -526,7 +526,7 @@ func (db *PostgreSQL) GetCurrentLatestAgentVersion(ctx context.Context, tx datab
 	}, nil
 }
 
-func (db *PostgreSQL) CountAgentVersions(ctx context.Context, tx database.Transaction, agentName string) (int, error) {
+func (db *PostgreSQL) CountAgentVersions(ctx context.Context, agentName string) (int, error) {
 	if ctx.Err() != nil {
 		return 0, ctx.Err()
 	}
@@ -538,7 +538,7 @@ func (db *PostgreSQL) CountAgentVersions(ctx context.Context, tx database.Transa
 		return 0, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `SELECT COUNT(*) FROM agents WHERE agent_name = $1`
 	var count int
 	if err := executor.QueryRow(ctx, query, agentName).Scan(&count); err != nil {
@@ -547,7 +547,7 @@ func (db *PostgreSQL) CountAgentVersions(ctx context.Context, tx database.Transa
 	return count, nil
 }
 
-func (db *PostgreSQL) CheckAgentVersionExists(ctx context.Context, tx database.Transaction, agentName, version string) (bool, error) {
+func (db *PostgreSQL) CheckAgentVersionExists(ctx context.Context, agentName, version string) (bool, error) {
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
@@ -559,7 +559,7 @@ func (db *PostgreSQL) CheckAgentVersionExists(ctx context.Context, tx database.T
 		return false, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `SELECT EXISTS(SELECT 1 FROM agents WHERE agent_name = $1 AND version = $2)`
 	var exists bool
 	if err := executor.QueryRow(ctx, query, agentName, version).Scan(&exists); err != nil {
@@ -568,7 +568,7 @@ func (db *PostgreSQL) CheckAgentVersionExists(ctx context.Context, tx database.T
 	return exists, nil
 }
 
-func (db *PostgreSQL) UnmarkAgentAsLatest(ctx context.Context, tx database.Transaction, agentName string) error {
+func (db *PostgreSQL) UnmarkAgentAsLatest(ctx context.Context, agentName string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -582,7 +582,7 @@ func (db *PostgreSQL) UnmarkAgentAsLatest(ctx context.Context, tx database.Trans
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `UPDATE agents SET is_latest = false WHERE agent_name = $1 AND is_latest = true`
 	if _, err := executor.Exec(ctx, query, agentName); err != nil {
 		return fmt.Errorf("failed to unmark latest agent version: %w", err)
@@ -591,7 +591,7 @@ func (db *PostgreSQL) UnmarkAgentAsLatest(ctx context.Context, tx database.Trans
 }
 
 // SetAgentEmbedding stores semantic embedding metadata for an agent version.
-func (db *PostgreSQL) SetAgentEmbedding(ctx context.Context, tx database.Transaction, agentName, version string, embedding *database.SemanticEmbedding) error {
+func (db *PostgreSQL) SetAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -603,7 +603,7 @@ func (db *PostgreSQL) SetAgentEmbedding(ctx context.Context, tx database.Transac
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	var (
 		query string
@@ -660,7 +660,7 @@ func (db *PostgreSQL) SetAgentEmbedding(ctx context.Context, tx database.Transac
 }
 
 // GetAgentEmbeddingMetadata retrieves embedding metadata for an agent version without loading the vector.
-func (db *PostgreSQL) GetAgentEmbeddingMetadata(ctx context.Context, tx database.Transaction, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
+func (db *PostgreSQL) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -672,7 +672,7 @@ func (db *PostgreSQL) GetAgentEmbeddingMetadata(ctx context.Context, tx database
 		return nil, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `
 		SELECT
 			semantic_embedding IS NOT NULL AS has_embedding,
@@ -735,7 +735,7 @@ func (db *PostgreSQL) GetAgentEmbeddingMetadata(ctx context.Context, tx database
 // DeleteAgent permanently removes an agent version from the database.
 // If the deleted version was the current latest, the most recently published
 // remaining version is promoted to latest.
-func (db *PostgreSQL) DeleteAgent(ctx context.Context, tx database.Transaction, agentName, version string) error {
+func (db *PostgreSQL) DeleteAgent(ctx context.Context, agentName, version string) error {
 	if err := db.authz.Check(ctx, auth.PermissionActionDelete, auth.Resource{
 		Name: agentName,
 		Type: auth.PermissionArtifactTypeAgent,
@@ -743,7 +743,7 @@ func (db *PostgreSQL) DeleteAgent(ctx context.Context, tx database.Transaction, 
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	// Check if the version being deleted is the current latest.
 	var wasLatest bool

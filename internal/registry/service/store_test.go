@@ -10,35 +10,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type storeTestTx struct {
-	database.Transaction
-	token *int
-}
-
 type storeTestStore struct {
 	database.Store
-	db *storeTestDB
-	tx database.Transaction
+	db      *storeTestDB
+	txToken *int
 }
 
 type storeTestDB struct {
-	database.ServiceDatabase
+	database.Store
 	testingT         *testing.T
 	inTransaction    bool
-	listServersFn    func(ctx context.Context, tx database.Transaction, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
-	listAgentsFn     func(ctx context.Context, tx database.Transaction, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
-	listSkillsFn     func(ctx context.Context, tx database.Transaction, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error)
-	listPromptsFn    func(ctx context.Context, tx database.Transaction, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error)
-	listProvidersFn  func(ctx context.Context, tx database.Transaction, platform *string) ([]*models.Provider, error)
-	getDeploymentsFn func(ctx context.Context, tx database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error)
-	deleteServerFn   func(ctx context.Context, tx database.Transaction, serverName, version string) error
-	deleteAgentFn    func(ctx context.Context, tx database.Transaction, agentName, version string) error
+	listServersFn    func(ctx context.Context, txToken *int, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
+	listAgentsFn     func(ctx context.Context, txToken *int, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
+	listSkillsFn     func(ctx context.Context, txToken *int, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error)
+	listPromptsFn    func(ctx context.Context, txToken *int, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error)
+	listProvidersFn  func(ctx context.Context, txToken *int, platform *string) ([]*models.Provider, error)
+	getDeploymentsFn func(ctx context.Context, txToken *int, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	deleteServerFn   func(ctx context.Context, txToken *int, serverName, version string) error
+	deleteAgentFn    func(ctx context.Context, txToken *int, agentName, version string) error
 }
 
-var _ database.ServiceDatabase = (*storeTestDB)(nil)
+var _ database.Store = (*storeTestDB)(nil)
 
-func (m *storeTestDB) asStore(tx database.Transaction) storeTestStore {
-	return storeTestStore{db: m, tx: tx}
+func (m *storeTestDB) asStore(txToken *int) storeTestStore {
+	return storeTestStore{db: m, txToken: txToken}
 }
 
 func (m *storeTestDB) InTransaction(ctx context.Context, fn func(context.Context, database.Store) error) error {
@@ -48,7 +43,7 @@ func (m *storeTestDB) InTransaction(ctx context.Context, fn func(context.Context
 	}()
 
 	token := 1
-	return fn(ctx, m.asStore(storeTestTx{token: &token}))
+	return fn(ctx, m.asStore(&token))
 }
 
 func (m *storeTestDB) Close() error {
@@ -90,57 +85,57 @@ func (m *storeTestDB) DeleteAgent(ctx context.Context, agentName, version string
 func (s storeTestStore) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
 	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
 	require.NotNil(s.db.testingT, s.db.listServersFn, "listServersFn must be set")
-	return s.db.listServersFn(ctx, s.tx, filter, cursor, limit)
+	return s.db.listServersFn(ctx, s.txToken, filter, cursor, limit)
 }
 
 func (s storeTestStore) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
 	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
 	require.NotNil(s.db.testingT, s.db.listAgentsFn, "listAgentsFn must be set")
-	return s.db.listAgentsFn(ctx, s.tx, filter, cursor, limit)
+	return s.db.listAgentsFn(ctx, s.txToken, filter, cursor, limit)
 }
 
 func (s storeTestStore) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
 	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
 	require.NotNil(s.db.testingT, s.db.listSkillsFn, "listSkillsFn must be set")
-	return s.db.listSkillsFn(ctx, s.tx, filter, cursor, limit)
+	return s.db.listSkillsFn(ctx, s.txToken, filter, cursor, limit)
 }
 
 func (s storeTestStore) ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
 	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
 	require.NotNil(s.db.testingT, s.db.listPromptsFn, "listPromptsFn must be set")
-	return s.db.listPromptsFn(ctx, s.tx, filter, cursor, limit)
+	return s.db.listPromptsFn(ctx, s.txToken, filter, cursor, limit)
 }
 
 func (s storeTestStore) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
 	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
 	require.NotNil(s.db.testingT, s.db.listProvidersFn, "listProvidersFn must be set")
-	return s.db.listProvidersFn(ctx, s.tx, platform)
+	return s.db.listProvidersFn(ctx, s.txToken, platform)
 }
 
 func (s storeTestStore) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
 	require.NotNil(s.db.testingT, s.db.getDeploymentsFn, "getDeploymentsFn must be set")
-	return s.db.getDeploymentsFn(ctx, s.tx, filter)
+	return s.db.getDeploymentsFn(ctx, s.txToken, filter)
 }
 
 func (s storeTestStore) DeleteServer(ctx context.Context, serverName, version string) error {
 	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
 	require.NotNil(s.db.testingT, s.db.deleteServerFn, "deleteServerFn must be set")
-	return s.db.deleteServerFn(ctx, s.tx, serverName, version)
+	return s.db.deleteServerFn(ctx, s.txToken, serverName, version)
 }
 
 func (s storeTestStore) DeleteAgent(ctx context.Context, agentName, version string) error {
 	require.NotNil(s.db.testingT, s.db.testingT, "testingT must be set")
 	require.NotNil(s.db.testingT, s.db.deleteAgentFn, "deleteAgentFn must be set")
-	return s.db.deleteAgentFn(ctx, s.tx, agentName, version)
+	return s.db.deleteAgentFn(ctx, s.txToken, agentName, version)
 }
 
-func TestReadStoresUsesServiceDatabase(t *testing.T) {
+func TestReadStoresUsesStore(t *testing.T) {
 	called := false
 	mockDB := &storeTestDB{
 		testingT: t,
-		listServersFn: func(ctx context.Context, tx database.Transaction, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
-			require.Nil(t, tx)
+		listServersFn: func(ctx context.Context, txToken *int, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+			require.Nil(t, txToken)
 			require.Nil(t, filter)
 			require.Equal(t, "", cursor)
 			require.Equal(t, 25, limit)
@@ -161,22 +156,22 @@ func TestReadStoresUsesRepositoryOverrides(t *testing.T) {
 	tests := []struct {
 		name      string
 		configure func(base, override *storeTestDB, baseCalled, overrideCalled *bool)
-		setRepo   func(svc *registryServiceImpl, repo database.ServiceDatabase)
+		setRepo   func(svc *registryServiceImpl, repo database.Store)
 		invoke    func(t *testing.T, stores storeBundle)
 	}{
 		{
 			name: "servers",
 			configure: func(base, override *storeTestDB, baseCalled, overrideCalled *bool) {
-				base.listServersFn = func(ctx context.Context, tx database.Transaction, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+				base.listServersFn = func(ctx context.Context, txToken *int, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
 					*baseCalled = true
 					return nil, "database", nil
 				}
-				override.listServersFn = func(ctx context.Context, tx database.Transaction, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+				override.listServersFn = func(ctx context.Context, txToken *int, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
 					*overrideCalled = true
 					return nil, "override", nil
 				}
 			},
-			setRepo: func(svc *registryServiceImpl, repo database.ServiceDatabase) {
+			setRepo: func(svc *registryServiceImpl, repo database.Store) {
 				svc.serverRepo = repo
 			},
 			invoke: func(t *testing.T, stores storeBundle) {
@@ -188,16 +183,16 @@ func TestReadStoresUsesRepositoryOverrides(t *testing.T) {
 		{
 			name: "agents",
 			configure: func(base, override *storeTestDB, baseCalled, overrideCalled *bool) {
-				base.listAgentsFn = func(ctx context.Context, tx database.Transaction, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+				base.listAgentsFn = func(ctx context.Context, txToken *int, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
 					*baseCalled = true
 					return nil, "database", nil
 				}
-				override.listAgentsFn = func(ctx context.Context, tx database.Transaction, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+				override.listAgentsFn = func(ctx context.Context, txToken *int, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
 					*overrideCalled = true
 					return nil, "override", nil
 				}
 			},
-			setRepo: func(svc *registryServiceImpl, repo database.ServiceDatabase) {
+			setRepo: func(svc *registryServiceImpl, repo database.Store) {
 				svc.agentRepo = repo
 			},
 			invoke: func(t *testing.T, stores storeBundle) {
@@ -209,16 +204,16 @@ func TestReadStoresUsesRepositoryOverrides(t *testing.T) {
 		{
 			name: "skills",
 			configure: func(base, override *storeTestDB, baseCalled, overrideCalled *bool) {
-				base.listSkillsFn = func(ctx context.Context, tx database.Transaction, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+				base.listSkillsFn = func(ctx context.Context, txToken *int, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
 					*baseCalled = true
 					return nil, "database", nil
 				}
-				override.listSkillsFn = func(ctx context.Context, tx database.Transaction, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+				override.listSkillsFn = func(ctx context.Context, txToken *int, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
 					*overrideCalled = true
 					return nil, "override", nil
 				}
 			},
-			setRepo: func(svc *registryServiceImpl, repo database.ServiceDatabase) {
+			setRepo: func(svc *registryServiceImpl, repo database.Store) {
 				svc.skillRepo = repo
 			},
 			invoke: func(t *testing.T, stores storeBundle) {
@@ -230,16 +225,16 @@ func TestReadStoresUsesRepositoryOverrides(t *testing.T) {
 		{
 			name: "prompts",
 			configure: func(base, override *storeTestDB, baseCalled, overrideCalled *bool) {
-				base.listPromptsFn = func(ctx context.Context, tx database.Transaction, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
+				base.listPromptsFn = func(ctx context.Context, txToken *int, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
 					*baseCalled = true
 					return nil, "database", nil
 				}
-				override.listPromptsFn = func(ctx context.Context, tx database.Transaction, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
+				override.listPromptsFn = func(ctx context.Context, txToken *int, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
 					*overrideCalled = true
 					return nil, "override", nil
 				}
 			},
-			setRepo: func(svc *registryServiceImpl, repo database.ServiceDatabase) {
+			setRepo: func(svc *registryServiceImpl, repo database.Store) {
 				svc.promptRepo = repo
 			},
 			invoke: func(t *testing.T, stores storeBundle) {
@@ -251,16 +246,16 @@ func TestReadStoresUsesRepositoryOverrides(t *testing.T) {
 		{
 			name: "providers",
 			configure: func(base, override *storeTestDB, baseCalled, overrideCalled *bool) {
-				base.listProvidersFn = func(ctx context.Context, tx database.Transaction, platform *string) ([]*models.Provider, error) {
+				base.listProvidersFn = func(ctx context.Context, txToken *int, platform *string) ([]*models.Provider, error) {
 					*baseCalled = true
 					return []*models.Provider{{ID: "database"}}, nil
 				}
-				override.listProvidersFn = func(ctx context.Context, tx database.Transaction, platform *string) ([]*models.Provider, error) {
+				override.listProvidersFn = func(ctx context.Context, txToken *int, platform *string) ([]*models.Provider, error) {
 					*overrideCalled = true
 					return []*models.Provider{{ID: "override"}}, nil
 				}
 			},
-			setRepo: func(svc *registryServiceImpl, repo database.ServiceDatabase) {
+			setRepo: func(svc *registryServiceImpl, repo database.Store) {
 				svc.providerRepo = repo
 			},
 			invoke: func(t *testing.T, stores storeBundle) {
@@ -273,16 +268,16 @@ func TestReadStoresUsesRepositoryOverrides(t *testing.T) {
 		{
 			name: "deployments",
 			configure: func(base, override *storeTestDB, baseCalled, overrideCalled *bool) {
-				base.getDeploymentsFn = func(ctx context.Context, tx database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+				base.getDeploymentsFn = func(ctx context.Context, txToken *int, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 					*baseCalled = true
 					return []*models.Deployment{{ID: "database"}}, nil
 				}
-				override.getDeploymentsFn = func(ctx context.Context, tx database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+				override.getDeploymentsFn = func(ctx context.Context, txToken *int, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 					*overrideCalled = true
 					return []*models.Deployment{{ID: "override"}}, nil
 				}
 			},
-			setRepo: func(svc *registryServiceImpl, repo database.ServiceDatabase) {
+			setRepo: func(svc *registryServiceImpl, repo database.Store) {
 				svc.deploymentRepo = repo
 			},
 			invoke: func(t *testing.T, stores storeBundle) {
@@ -317,10 +312,9 @@ func TestInTransactionUsesTransactionalStores(t *testing.T) {
 	var mockDB *storeTestDB
 	mockDB = &storeTestDB{
 		testingT: t,
-		deleteServerFn: func(ctx context.Context, tx database.Transaction, serverName, version string) error {
+		deleteServerFn: func(ctx context.Context, txToken *int, serverName, version string) error {
 			require.True(t, mockDB.inTransaction)
-			_, ok := tx.(storeTestTx)
-			require.True(t, ok)
+			require.NotNil(t, txToken)
 			require.Equal(t, "io.test/server", serverName)
 			require.Equal(t, "1.0.0", version)
 			return nil
@@ -341,16 +335,12 @@ func TestInTransactionReusesTransactionAcrossStoreTypes(t *testing.T) {
 
 	mockDB := &storeTestDB{
 		testingT: t,
-		deleteServerFn: func(ctx context.Context, tx database.Transaction, serverName, version string) error {
-			typedTx, ok := tx.(storeTestTx)
-			require.True(t, ok)
-			serverToken = typedTx.token
+		deleteServerFn: func(ctx context.Context, txToken *int, serverName, version string) error {
+			serverToken = txToken
 			return nil
 		},
-		deleteAgentFn: func(ctx context.Context, tx database.Transaction, agentName, version string) error {
-			typedTx, ok := tx.(storeTestTx)
-			require.True(t, ok)
-			agentToken = typedTx.token
+		deleteAgentFn: func(ctx context.Context, txToken *int, agentName, version string) error {
+			agentToken = txToken
 			return nil
 		},
 	}
@@ -368,11 +358,11 @@ func TestInTransactionReusesTransactionAcrossStoreTypes(t *testing.T) {
 	require.Same(t, serverToken, agentToken)
 }
 
-func TestInTransactionRequiresServiceDatabase(t *testing.T) {
+func TestInTransactionRequiresStore(t *testing.T) {
 	svc := &registryServiceImpl{}
 
 	err := svc.inTransaction(context.Background(), func(ctx context.Context, stores storeBundle) error {
 		return nil
 	})
-	require.EqualError(t, err, "service database is not configured")
+	require.EqualError(t, err, "store is not configured")
 }

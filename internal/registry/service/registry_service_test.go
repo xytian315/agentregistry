@@ -25,21 +25,21 @@ import (
 )
 
 type splitDomainViewMockDB struct {
-	database.Database
-	listServersFn     func(ctx context.Context, tx database.Transaction, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
-	getProviderByIDFn func(ctx context.Context, tx database.Transaction, providerID string) (*models.Provider, error)
+	database.Store
+	listServersFn     func(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
+	getProviderByIDFn func(ctx context.Context, providerID string) (*models.Provider, error)
 }
 
-func newRegistryTestServerService(storeDB database.ServiceDatabase, cfg *config.Config) *serversvc.Service {
+func newRegistryTestServerService(storeDB database.Store, cfg *config.Config) *serversvc.Service {
 	return serversvc.New(serversvc.Dependencies{StoreDB: storeDB, Config: cfg})
 }
 
-func (m *splitDomainViewMockDB) ListServers(ctx context.Context, tx database.Transaction, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
-	return m.listServersFn(ctx, tx, filter, cursor, limit)
+func (m *splitDomainViewMockDB) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	return m.listServersFn(ctx, filter, cursor, limit)
 }
 
-func (m *splitDomainViewMockDB) GetProviderByID(ctx context.Context, tx database.Transaction, providerID string) (*models.Provider, error) {
-	return m.getProviderByIDFn(ctx, tx, providerID)
+func (m *splitDomainViewMockDB) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	return m.getProviderByIDFn(ctx, providerID)
 }
 
 func TestDomainServiceViewsShareRegistryState(t *testing.T) {
@@ -49,7 +49,7 @@ func TestDomainServiceViewsShareRegistryState(t *testing.T) {
 	adapter := &testDeploymentAdapter{}
 
 	mockDB := &splitDomainViewMockDB{
-		listServersFn: func(_ context.Context, _ database.Transaction, _ *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+		listServersFn: func(_ context.Context, _ *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
 			serverCalls++
 			require.Empty(t, cursor)
 			require.Equal(t, 1, limit)
@@ -57,14 +57,14 @@ func TestDomainServiceViewsShareRegistryState(t *testing.T) {
 				Server: apiv0.ServerJSON{Name: "com.example/weather", Version: "1.0.0"},
 			}}, "", nil
 		},
-		getProviderByIDFn: func(_ context.Context, _ database.Transaction, providerID string) (*models.Provider, error) {
+		getProviderByIDFn: func(_ context.Context, providerID string) (*models.Provider, error) {
 			providerCalls++
 			return &models.Provider{ID: providerID, Platform: "local"}, nil
 		},
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
 		},
@@ -944,10 +944,10 @@ func TestDeployServer_AlreadyExistsDoesNotAttemptIdentityCleanup(t *testing.T) {
 	removeCalls := 0
 
 	mockDB := &deployCreateMockDB{
-		getProviderByIDFn: func(_ context.Context, _ database.Transaction, providerID string) (*models.Provider, error) {
+		getProviderByIDFn: func(_ context.Context, providerID string) (*models.Provider, error) {
 			return &models.Provider{ID: providerID, Platform: "local"}, nil
 		},
-		getServerByNameAndVersionFn: func(_ context.Context, _ database.Transaction, serverName, version string) (*apiv0.ServerResponse, error) {
+		getServerByNameAndVersionFn: func(_ context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
 			return &apiv0.ServerResponse{
 				Server: apiv0.ServerJSON{
 					Name:    serverName,
@@ -955,22 +955,22 @@ func TestDeployServer_AlreadyExistsDoesNotAttemptIdentityCleanup(t *testing.T) {
 				},
 			}, nil
 		},
-		createDeploymentFn: func(_ context.Context, _ database.Transaction, _ *models.Deployment) error {
+		createDeploymentFn: func(_ context.Context, _ *models.Deployment) error {
 			createCalls++
 			return database.ErrAlreadyExists
 		},
-		getDeploymentsFn: func(_ context.Context, _ database.Transaction, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
+		getDeploymentsFn: func(_ context.Context, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
 			getDeploymentsCalls++
 			return []*models.Deployment{}, nil
 		},
-		removeDeploymentByIDFn: func(_ context.Context, _ database.Transaction, _ string) error {
+		removeDeploymentByIDFn: func(_ context.Context, _ string) error {
 			removeCalls++
 			return nil
 		},
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": &testDeploymentAdapter{},
 		},
@@ -989,10 +989,10 @@ func TestDeployAgent_AlreadyExistsDoesNotAttemptIdentityCleanup(t *testing.T) {
 	removeCalls := 0
 
 	mockDB := &deployCreateMockDB{
-		getProviderByIDFn: func(_ context.Context, _ database.Transaction, providerID string) (*models.Provider, error) {
+		getProviderByIDFn: func(_ context.Context, providerID string) (*models.Provider, error) {
 			return &models.Provider{ID: providerID, Platform: "local"}, nil
 		},
-		getAgentByNameAndVersionFn: func(_ context.Context, _ database.Transaction, agentName, version string) (*models.AgentResponse, error) {
+		getAgentByNameAndVersionFn: func(_ context.Context, agentName, version string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{
 				Agent: models.AgentJSON{
 					AgentManifest: models.AgentManifest{Name: agentName},
@@ -1000,22 +1000,22 @@ func TestDeployAgent_AlreadyExistsDoesNotAttemptIdentityCleanup(t *testing.T) {
 				},
 			}, nil
 		},
-		createDeploymentFn: func(_ context.Context, _ database.Transaction, _ *models.Deployment) error {
+		createDeploymentFn: func(_ context.Context, _ *models.Deployment) error {
 			createCalls++
 			return database.ErrAlreadyExists
 		},
-		getDeploymentsFn: func(_ context.Context, _ database.Transaction, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
+		getDeploymentsFn: func(_ context.Context, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
 			getDeploymentsCalls++
 			return []*models.Deployment{}, nil
 		},
-		removeDeploymentByIDFn: func(_ context.Context, _ database.Transaction, _ string) error {
+		removeDeploymentByIDFn: func(_ context.Context, _ string) error {
 			removeCalls++
 			return nil
 		},
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": &testDeploymentAdapter{},
 		},
@@ -1054,7 +1054,7 @@ func TestCreateManagedDeploymentRecord_UsesDeployingStatus(t *testing.T) {
 	var createdRecord *models.Deployment
 
 	mockDB := &deployCreateMockDB{
-		getServerByNameAndVersionFn: func(_ context.Context, _ database.Transaction, serverName, version string) (*apiv0.ServerResponse, error) {
+		getServerByNameAndVersionFn: func(_ context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
 			return &apiv0.ServerResponse{
 				Server: apiv0.ServerJSON{
 					Name:    serverName,
@@ -1062,7 +1062,7 @@ func TestCreateManagedDeploymentRecord_UsesDeployingStatus(t *testing.T) {
 				},
 			}, nil
 		},
-		createDeploymentFn: func(_ context.Context, _ database.Transaction, deployment *models.Deployment) error {
+		createDeploymentFn: func(_ context.Context, deployment *models.Deployment) error {
 			clonedEnv := map[string]string{}
 			maps.Copy(clonedEnv, deployment.Env)
 			createdRecord = &models.Deployment{
@@ -1077,12 +1077,12 @@ func TestCreateManagedDeploymentRecord_UsesDeployingStatus(t *testing.T) {
 			}
 			return nil
 		},
-		getDeploymentByIDFn: func(_ context.Context, _ database.Transaction, _ string) (*models.Deployment, error) {
+		getDeploymentByIDFn: func(_ context.Context, _ string) (*models.Deployment, error) {
 			return createdRecord, nil
 		},
 	}
 
-	svc := &registryServiceImpl{storeDB: database.NewServiceDatabase(mockDB)}
+	svc := &registryServiceImpl{storeDB: mockDB}
 
 	created, err := svc.createManagedDeploymentRecord(ctx, &models.Deployment{
 		ID:           "dep-create-1",
@@ -1102,7 +1102,7 @@ func TestCreateManagedDeploymentRecord_UsesDeployingStatus(t *testing.T) {
 func TestApplyDeploymentActionResult_UsesSystemContext(t *testing.T) {
 	ctx := context.Background()
 	mockDB := &deployCreateMockDB{
-		updateDeploymentStateFn: func(ctx context.Context, _ database.Transaction, id string, patch *models.DeploymentStatePatch) error {
+		updateDeploymentStateFn: func(ctx context.Context, id string, patch *models.DeploymentStatePatch) error {
 			session, ok := auth.AuthSessionFrom(ctx)
 			require.True(t, ok)
 			require.True(t, auth.IsSystemSession(session))
@@ -1116,7 +1116,7 @@ func TestApplyDeploymentActionResult_UsesSystemContext(t *testing.T) {
 		},
 	}
 
-	svc := &registryServiceImpl{storeDB: database.NewServiceDatabase(mockDB)}
+	svc := &registryServiceImpl{storeDB: mockDB}
 	err := svc.applyDeploymentActionResult(ctx, "dep-1", &models.DeploymentActionResult{Status: "deployed"})
 	require.NoError(t, err)
 }
@@ -1124,7 +1124,7 @@ func TestApplyDeploymentActionResult_UsesSystemContext(t *testing.T) {
 func TestApplyFailedDeploymentAction_UsesSystemContext(t *testing.T) {
 	ctx := context.Background()
 	mockDB := &deployCreateMockDB{
-		updateDeploymentStateFn: func(ctx context.Context, _ database.Transaction, id string, patch *models.DeploymentStatePatch) error {
+		updateDeploymentStateFn: func(ctx context.Context, id string, patch *models.DeploymentStatePatch) error {
 			session, ok := auth.AuthSessionFrom(ctx)
 			require.True(t, ok)
 			require.True(t, auth.IsSystemSession(session))
@@ -1138,84 +1138,84 @@ func TestApplyFailedDeploymentAction_UsesSystemContext(t *testing.T) {
 		},
 	}
 
-	svc := &registryServiceImpl{storeDB: database.NewServiceDatabase(mockDB)}
+	svc := &registryServiceImpl{storeDB: mockDB}
 	err := svc.applyFailedDeploymentAction(ctx, "dep-2", fmt.Errorf("boom"), nil)
 	require.NoError(t, err)
 }
 
 type deployCreateMockDB struct {
-	database.Database
-	getProviderByIDFn           func(ctx context.Context, tx database.Transaction, providerID string) (*models.Provider, error)
-	getServerByNameAndVersionFn func(ctx context.Context, tx database.Transaction, serverName, version string) (*apiv0.ServerResponse, error)
-	getAgentByNameAndVersionFn  func(ctx context.Context, tx database.Transaction, agentName, version string) (*models.AgentResponse, error)
-	createDeploymentFn          func(ctx context.Context, tx database.Transaction, deployment *models.Deployment) error
-	getDeploymentByIDFn         func(ctx context.Context, tx database.Transaction, id string) (*models.Deployment, error)
-	updateDeploymentStateFn     func(ctx context.Context, tx database.Transaction, id string, patch *models.DeploymentStatePatch) error
-	getDeploymentsFn            func(ctx context.Context, tx database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error)
-	removeDeploymentByIDFn      func(ctx context.Context, tx database.Transaction, id string) error
+	database.Store
+	getProviderByIDFn           func(ctx context.Context, providerID string) (*models.Provider, error)
+	getServerByNameAndVersionFn func(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error)
+	getAgentByNameAndVersionFn  func(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
+	createDeploymentFn          func(ctx context.Context, deployment *models.Deployment) error
+	getDeploymentByIDFn         func(ctx context.Context, id string) (*models.Deployment, error)
+	updateDeploymentStateFn     func(ctx context.Context, id string, patch *models.DeploymentStatePatch) error
+	getDeploymentsFn            func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	removeDeploymentByIDFn      func(ctx context.Context, id string) error
 }
 
-// deploymentMockDB is a minimal mock for database.Database that only implements
+// deploymentMockDB is a minimal mock for database.Store that only implements
 // the methods needed for testing deployment cleanup logic. All other methods panic.
 type deploymentMockDB struct {
-	database.Database      // embed interface so unimplemented methods panic
-	getDeploymentByIDFn    func(ctx context.Context, tx database.Transaction, id string) (*models.Deployment, error)
-	getDeploymentsFn       func(ctx context.Context, tx database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error)
-	listProvidersFn        func(ctx context.Context, tx database.Transaction, platform *string) ([]*models.Provider, error)
-	getProviderByIDFn      func(ctx context.Context, tx database.Transaction, providerID string) (*models.Provider, error)
-	removeDeploymentByIdFn func(ctx context.Context, tx database.Transaction, id string) error
+	database.Store      // embed interface so unimplemented methods panic
+	getDeploymentByIDFn    func(ctx context.Context, id string) (*models.Deployment, error)
+	getDeploymentsFn       func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	listProvidersFn        func(ctx context.Context, platform *string) ([]*models.Provider, error)
+	getProviderByIDFn      func(ctx context.Context, providerID string) (*models.Provider, error)
+	removeDeploymentByIdFn func(ctx context.Context, id string) error
 }
 
-func (m *deployCreateMockDB) GetProviderByID(ctx context.Context, tx database.Transaction, providerID string) (*models.Provider, error) {
-	return m.getProviderByIDFn(ctx, tx, providerID)
+func (m *deployCreateMockDB) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	return m.getProviderByIDFn(ctx, providerID)
 }
 
-func (m *deployCreateMockDB) GetServerByNameAndVersion(ctx context.Context, tx database.Transaction, serverName, version string) (*apiv0.ServerResponse, error) {
-	return m.getServerByNameAndVersionFn(ctx, tx, serverName, version)
+func (m *deployCreateMockDB) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	return m.getServerByNameAndVersionFn(ctx, serverName, version)
 }
 
-func (m *deployCreateMockDB) GetAgentByNameAndVersion(ctx context.Context, tx database.Transaction, agentName, version string) (*models.AgentResponse, error) {
-	return m.getAgentByNameAndVersionFn(ctx, tx, agentName, version)
+func (m *deployCreateMockDB) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	return m.getAgentByNameAndVersionFn(ctx, agentName, version)
 }
 
-func (m *deployCreateMockDB) CreateDeployment(ctx context.Context, tx database.Transaction, deployment *models.Deployment) error {
-	return m.createDeploymentFn(ctx, tx, deployment)
+func (m *deployCreateMockDB) CreateDeployment(ctx context.Context, deployment *models.Deployment) error {
+	return m.createDeploymentFn(ctx, deployment)
 }
 
-func (m *deployCreateMockDB) GetDeploymentByID(ctx context.Context, tx database.Transaction, id string) (*models.Deployment, error) {
-	return m.getDeploymentByIDFn(ctx, tx, id)
+func (m *deployCreateMockDB) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+	return m.getDeploymentByIDFn(ctx, id)
 }
 
-func (m *deployCreateMockDB) UpdateDeploymentState(ctx context.Context, tx database.Transaction, id string, patch *models.DeploymentStatePatch) error {
-	return m.updateDeploymentStateFn(ctx, tx, id, patch)
+func (m *deployCreateMockDB) UpdateDeploymentState(ctx context.Context, id string, patch *models.DeploymentStatePatch) error {
+	return m.updateDeploymentStateFn(ctx, id, patch)
 }
 
-func (m *deployCreateMockDB) GetDeployments(ctx context.Context, tx database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
-	return m.getDeploymentsFn(ctx, tx, filter)
+func (m *deployCreateMockDB) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	return m.getDeploymentsFn(ctx, filter)
 }
 
-func (m *deployCreateMockDB) RemoveDeploymentByID(ctx context.Context, tx database.Transaction, id string) error {
-	return m.removeDeploymentByIDFn(ctx, tx, id)
+func (m *deployCreateMockDB) RemoveDeploymentByID(ctx context.Context, id string) error {
+	return m.removeDeploymentByIDFn(ctx, id)
 }
 
-func (m *deploymentMockDB) ListProviders(ctx context.Context, tx database.Transaction, platform *string) ([]*models.Provider, error) {
-	return m.listProvidersFn(ctx, tx, platform)
+func (m *deploymentMockDB) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
+	return m.listProvidersFn(ctx, platform)
 }
 
-func (m *deploymentMockDB) GetDeploymentByID(ctx context.Context, tx database.Transaction, id string) (*models.Deployment, error) {
-	return m.getDeploymentByIDFn(ctx, tx, id)
+func (m *deploymentMockDB) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+	return m.getDeploymentByIDFn(ctx, id)
 }
 
-func (m *deploymentMockDB) GetDeployments(ctx context.Context, tx database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
-	return m.getDeploymentsFn(ctx, tx, filter)
+func (m *deploymentMockDB) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	return m.getDeploymentsFn(ctx, filter)
 }
 
-func (m *deploymentMockDB) GetProviderByID(ctx context.Context, tx database.Transaction, providerID string) (*models.Provider, error) {
-	return m.getProviderByIDFn(ctx, tx, providerID)
+func (m *deploymentMockDB) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	return m.getProviderByIDFn(ctx, providerID)
 }
 
-func (m *deploymentMockDB) RemoveDeploymentByID(ctx context.Context, tx database.Transaction, id string) error {
-	return m.removeDeploymentByIdFn(ctx, tx, id)
+func (m *deploymentMockDB) RemoveDeploymentByID(ctx context.Context, id string) error {
+	return m.removeDeploymentByIdFn(ctx, id)
 }
 
 // Helper functions
@@ -1312,7 +1312,7 @@ func TestCleanupExistingDeployment_UsesAdapterStaleCleanerWhenAvailable(t *testi
 	removeCalled := false
 
 	mockDB := &deploymentMockDB{
-		getDeploymentsFn: func(_ context.Context, _ database.Transaction, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
+		getDeploymentsFn: func(_ context.Context, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
 			return []*models.Deployment{
 				{
 					ID:           "dep-cleanup-1",
@@ -1323,10 +1323,10 @@ func TestCleanupExistingDeployment_UsesAdapterStaleCleanerWhenAvailable(t *testi
 				},
 			}, nil
 		},
-		getProviderByIDFn: func(_ context.Context, _ database.Transaction, providerID string) (*models.Provider, error) {
+		getProviderByIDFn: func(_ context.Context, providerID string) (*models.Provider, error) {
 			return &models.Provider{ID: providerID, Platform: "local"}, nil
 		},
-		removeDeploymentByIdFn: func(_ context.Context, _ database.Transaction, _ string) error {
+		removeDeploymentByIdFn: func(_ context.Context, _ string) error {
 			removeCalled = true
 			return nil
 		},
@@ -1340,7 +1340,7 @@ func TestCleanupExistingDeployment_UsesAdapterStaleCleanerWhenAvailable(t *testi
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
 		},
@@ -1356,10 +1356,10 @@ func TestUndeployDeployment_UsesAdapterForLocalPlatform(t *testing.T) {
 	undeployCalled := false
 	removeCalled := false
 	mockDB := &deploymentMockDB{
-		getProviderByIDFn: func(_ context.Context, _ database.Transaction, providerID string) (*models.Provider, error) {
+		getProviderByIDFn: func(_ context.Context, providerID string) (*models.Provider, error) {
 			return &models.Provider{ID: providerID, Platform: "local"}, nil
 		},
-		removeDeploymentByIdFn: func(_ context.Context, _ database.Transaction, id string) error {
+		removeDeploymentByIdFn: func(_ context.Context, id string) error {
 			removeCalled = id == "dep-local-1"
 			return nil
 		},
@@ -1372,7 +1372,7 @@ func TestUndeployDeployment_UsesAdapterForLocalPlatform(t *testing.T) {
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
 		},
@@ -1398,10 +1398,10 @@ func TestUndeployDeployment_FailedOrCancelledRunsAdapterCleanup(t *testing.T) {
 			undeployCalled := false
 			removeCalled := false
 			mockDB := &deploymentMockDB{
-				getProviderByIDFn: func(_ context.Context, _ database.Transaction, providerID string) (*models.Provider, error) {
+				getProviderByIDFn: func(_ context.Context, providerID string) (*models.Provider, error) {
 					return &models.Provider{ID: providerID, Platform: "local"}, nil
 				},
-				removeDeploymentByIdFn: func(_ context.Context, _ database.Transaction, id string) error {
+				removeDeploymentByIdFn: func(_ context.Context, id string) error {
 					removeCalled = id == "dep-failed-1"
 					return nil
 				},
@@ -1414,7 +1414,7 @@ func TestUndeployDeployment_FailedOrCancelledRunsAdapterCleanup(t *testing.T) {
 			}
 
 			svc := &registryServiceImpl{
-				storeDB: database.NewServiceDatabase(mockDB),
+				storeDB: mockDB,
 				deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 					"local": adapter,
 				},
@@ -1434,13 +1434,13 @@ func TestUndeployDeployment_FailedOrCancelledRunsAdapterCleanup(t *testing.T) {
 
 func TestCreateDeployment_RejectsUnsupportedResourceTypeForProvider(t *testing.T) {
 	mockDB := &deployCreateMockDB{
-		getProviderByIDFn: func(_ context.Context, _ database.Transaction, providerID string) (*models.Provider, error) {
+		getProviderByIDFn: func(_ context.Context, providerID string) (*models.Provider, error) {
 			return &models.Provider{ID: providerID, Platform: "local"}, nil
 		},
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": &testDeploymentAdapter{supportedTypes: []string{"mcp"}},
 		},
@@ -1484,11 +1484,11 @@ func TestCreateDeployment_UsesAdapterResolvedFromProviderPlatform(t *testing.T) 
 			adapterCalled := false
 
 			mockDB := &deployCreateMockDB{
-				getProviderByIDFn: func(_ context.Context, _ database.Transaction, providerID string) (*models.Provider, error) {
+				getProviderByIDFn: func(_ context.Context, providerID string) (*models.Provider, error) {
 					require.Equal(t, tt.providerID, providerID)
 					return &models.Provider{ID: providerID, Platform: tt.platform}, nil
 				},
-				getServerByNameAndVersionFn: func(_ context.Context, _ database.Transaction, serverName, version string) (*apiv0.ServerResponse, error) {
+				getServerByNameAndVersionFn: func(_ context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
 					if tt.resourceType != "mcp" {
 						t.Fatalf("unexpected server lookup for resource type %s", tt.resourceType)
 					}
@@ -1496,7 +1496,7 @@ func TestCreateDeployment_UsesAdapterResolvedFromProviderPlatform(t *testing.T) 
 						Server: apiv0.ServerJSON{Name: serverName, Version: version},
 					}, nil
 				},
-				getAgentByNameAndVersionFn: func(_ context.Context, _ database.Transaction, agentName, version string) (*models.AgentResponse, error) {
+				getAgentByNameAndVersionFn: func(_ context.Context, agentName, version string) (*models.AgentResponse, error) {
 					if tt.resourceType != "agent" {
 						t.Fatalf("unexpected agent lookup for resource type %s", tt.resourceType)
 					}
@@ -1507,12 +1507,12 @@ func TestCreateDeployment_UsesAdapterResolvedFromProviderPlatform(t *testing.T) 
 						},
 					}, nil
 				},
-				createDeploymentFn: func(_ context.Context, _ database.Transaction, deployment *models.Deployment) error {
+				createDeploymentFn: func(_ context.Context, deployment *models.Deployment) error {
 					cloned := *deployment
 					createdRecord = &cloned
 					return nil
 				},
-				updateDeploymentStateFn: func(_ context.Context, _ database.Transaction, id string, patch *models.DeploymentStatePatch) error {
+				updateDeploymentStateFn: func(_ context.Context, id string, patch *models.DeploymentStatePatch) error {
 					require.NotNil(t, createdRecord)
 					require.Equal(t, createdRecord.ID, id)
 					if patch.Status != nil {
@@ -1520,7 +1520,7 @@ func TestCreateDeployment_UsesAdapterResolvedFromProviderPlatform(t *testing.T) 
 					}
 					return nil
 				},
-				getDeploymentByIDFn: func(_ context.Context, _ database.Transaction, id string) (*models.Deployment, error) {
+				getDeploymentByIDFn: func(_ context.Context, id string) (*models.Deployment, error) {
 					require.NotNil(t, createdRecord)
 					require.Equal(t, createdRecord.ID, id)
 					return createdRecord, nil
@@ -1538,7 +1538,7 @@ func TestCreateDeployment_UsesAdapterResolvedFromProviderPlatform(t *testing.T) 
 			}
 
 			svc := &registryServiceImpl{
-				storeDB: database.NewServiceDatabase(mockDB),
+				storeDB: mockDB,
 				deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 					tt.platform: adapter,
 				},
@@ -1562,7 +1562,7 @@ func TestCreateDeployment_UsesAdapterResolvedFromProviderPlatform(t *testing.T) 
 func TestGetDeployments_AppendsDiscoveredDeploymentsFromAdapters(t *testing.T) {
 	discoverCalled := false
 	mockDB := &deploymentMockDB{
-		getDeploymentsFn: func(_ context.Context, _ database.Transaction, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
+		getDeploymentsFn: func(_ context.Context, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
 			return []*models.Deployment{
 				{
 					ID:           "dep-managed-1",
@@ -1574,7 +1574,7 @@ func TestGetDeployments_AppendsDiscoveredDeploymentsFromAdapters(t *testing.T) {
 				},
 			}, nil
 		},
-		listProvidersFn: func(_ context.Context, _ database.Transaction, _ *string) ([]*models.Provider, error) {
+		listProvidersFn: func(_ context.Context, _ *string) ([]*models.Provider, error) {
 			return []*models.Provider{
 				{ID: "kubernetes-default", Platform: "kubernetes"},
 			}, nil
@@ -1598,7 +1598,7 @@ func TestGetDeployments_AppendsDiscoveredDeploymentsFromAdapters(t *testing.T) {
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"kubernetes": adapter,
 		},
@@ -1615,10 +1615,10 @@ func TestGetDeployments_AppendsDiscoveredDeploymentsFromAdapters(t *testing.T) {
 
 func TestGetDeployments_DedupesDiscoveredDeploymentsByIdentity(t *testing.T) {
 	mockDB := &deploymentMockDB{
-		getDeploymentsFn: func(_ context.Context, _ database.Transaction, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
+		getDeploymentsFn: func(_ context.Context, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
 			return []*models.Deployment{}, nil
 		},
-		listProvidersFn: func(_ context.Context, _ database.Transaction, _ *string) ([]*models.Provider, error) {
+		listProvidersFn: func(_ context.Context, _ *string) ([]*models.Provider, error) {
 			return []*models.Provider{
 				{ID: "kubernetes-default", Platform: "kubernetes"},
 			}, nil
@@ -1648,7 +1648,7 @@ func TestGetDeployments_DedupesDiscoveredDeploymentsByIdentity(t *testing.T) {
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"kubernetes": adapter,
 		},
@@ -1663,13 +1663,13 @@ func TestGetDeployments_DedupesDiscoveredDeploymentsByIdentity(t *testing.T) {
 
 func TestGetDeployments_KeepsDiscoveredDeploymentsDistinctAcrossNamespaces(t *testing.T) {
 	mockDB := &deploymentMockDB{
-		getDeploymentByIDFn: func(_ context.Context, _ database.Transaction, _ string) (*models.Deployment, error) {
+		getDeploymentByIDFn: func(_ context.Context, _ string) (*models.Deployment, error) {
 			return nil, database.ErrNotFound
 		},
-		getDeploymentsFn: func(_ context.Context, _ database.Transaction, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
+		getDeploymentsFn: func(_ context.Context, _ *models.DeploymentFilter) ([]*models.Deployment, error) {
 			return []*models.Deployment{}, nil
 		},
-		listProvidersFn: func(_ context.Context, _ database.Transaction, _ *string) ([]*models.Provider, error) {
+		listProvidersFn: func(_ context.Context, _ *string) ([]*models.Provider, error) {
 			return []*models.Provider{
 				{ID: "kubernetes-default", Platform: "kubernetes"},
 			}, nil
@@ -1705,7 +1705,7 @@ func TestGetDeployments_KeepsDiscoveredDeploymentsDistinctAcrossNamespaces(t *te
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"kubernetes": adapter,
 		},
@@ -1721,7 +1721,7 @@ func TestGetDeployments_ManagedOriginSkipsDiscovery(t *testing.T) {
 	discoverCalled := false
 	originManaged := "managed"
 	mockDB := &deploymentMockDB{
-		getDeploymentsFn: func(_ context.Context, _ database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+		getDeploymentsFn: func(_ context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 			require.NotNil(t, filter)
 			require.NotNil(t, filter.Origin)
 			require.Equal(t, originManaged, *filter.Origin)
@@ -1736,7 +1736,7 @@ func TestGetDeployments_ManagedOriginSkipsDiscovery(t *testing.T) {
 				},
 			}, nil
 		},
-		listProvidersFn: func(_ context.Context, _ database.Transaction, _ *string) ([]*models.Provider, error) {
+		listProvidersFn: func(_ context.Context, _ *string) ([]*models.Provider, error) {
 			return []*models.Provider{
 				{ID: "kubernetes-default", Platform: "kubernetes"},
 			}, nil
@@ -1751,7 +1751,7 @@ func TestGetDeployments_ManagedOriginSkipsDiscovery(t *testing.T) {
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"kubernetes": adapter,
 		},
@@ -1768,16 +1768,16 @@ func TestGetDeployments_ManagedOriginSkipsDiscovery(t *testing.T) {
 func TestGetDeploymentByID_FallsBackToDiscoveredDeployments(t *testing.T) {
 	discoveredID := deploymentsvc.DiscoveredDeploymentID("kubernetes-default", "mcp", "io.test/external", "unknown")
 	mockDB := &deploymentMockDB{
-		getDeploymentByIDFn: func(_ context.Context, _ database.Transaction, _ string) (*models.Deployment, error) {
+		getDeploymentByIDFn: func(_ context.Context, _ string) (*models.Deployment, error) {
 			return nil, database.ErrNotFound
 		},
-		getDeploymentsFn: func(_ context.Context, _ database.Transaction, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+		getDeploymentsFn: func(_ context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 			require.NotNil(t, filter)
 			require.NotNil(t, filter.Origin)
 			require.Equal(t, "discovered", *filter.Origin)
 			return []*models.Deployment{}, nil
 		},
-		listProvidersFn: func(_ context.Context, _ database.Transaction, _ *string) ([]*models.Provider, error) {
+		listProvidersFn: func(_ context.Context, _ *string) ([]*models.Provider, error) {
 			return []*models.Provider{
 				{ID: "kubernetes-default", Platform: "kubernetes"},
 			}, nil
@@ -1799,7 +1799,7 @@ func TestGetDeploymentByID_FallsBackToDiscoveredDeployments(t *testing.T) {
 	}
 
 	svc := &registryServiceImpl{
-		storeDB: database.NewServiceDatabase(mockDB),
+		storeDB: mockDB,
 		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"kubernetes": adapter,
 		},
@@ -1813,31 +1813,31 @@ func TestGetDeploymentByID_FallsBackToDiscoveredDeployments(t *testing.T) {
 	assert.Equal(t, "kubernetes-default", got.ProviderID)
 }
 
-// promptMockDB is a minimal mock for database.Database that only implements
+// promptMockDB is a minimal mock for database.Store that only implements
 // GetPromptByName and GetPromptByNameAndVersion for testing ResolveAgentManifestPrompts.
 type promptMockDB struct {
-	database.Database
-	getPromptByNameFn           func(ctx context.Context, tx database.Transaction, name string) (*models.PromptResponse, error)
-	getPromptByNameAndVersionFn func(ctx context.Context, tx database.Transaction, name, version string) (*models.PromptResponse, error)
+	database.Store
+	getPromptByNameFn           func(ctx context.Context, name string) (*models.PromptResponse, error)
+	getPromptByNameAndVersionFn func(ctx context.Context, name, version string) (*models.PromptResponse, error)
 }
 
-func (m *promptMockDB) GetPromptByName(ctx context.Context, tx database.Transaction, name string) (*models.PromptResponse, error) {
+func (m *promptMockDB) GetPromptByName(ctx context.Context, name string) (*models.PromptResponse, error) {
 	if m.getPromptByNameFn != nil {
-		return m.getPromptByNameFn(ctx, tx, name)
+		return m.getPromptByNameFn(ctx, name)
 	}
 	return nil, database.ErrNotFound
 }
 
-func (m *promptMockDB) GetPromptByNameAndVersion(ctx context.Context, tx database.Transaction, name, version string) (*models.PromptResponse, error) {
-	return m.getPromptByNameAndVersionFn(ctx, tx, name, version)
+func (m *promptMockDB) GetPromptByNameAndVersion(ctx context.Context, name, version string) (*models.PromptResponse, error) {
+	return m.getPromptByNameAndVersionFn(ctx, name, version)
 }
 
 func TestResolveAgentManifestPrompts(t *testing.T) {
 	tests := []struct {
 		name       string
 		manifest   *models.AgentManifest
-		dbFn       func(ctx context.Context, tx database.Transaction, name, version string) (*models.PromptResponse, error)
-		dbByNameFn func(ctx context.Context, tx database.Transaction, name string) (*models.PromptResponse, error)
+		dbFn       func(ctx context.Context, name, version string) (*models.PromptResponse, error)
+		dbByNameFn func(ctx context.Context, name string) (*models.PromptResponse, error)
 		want       []api.ResolvedPrompt
 		wantErr    string
 	}{
@@ -1858,7 +1858,7 @@ func TestResolveAgentManifestPrompts(t *testing.T) {
 					{Name: "my-system-prompt", RegistryPromptName: "system-prompt", RegistryPromptVersion: "2.0.0"},
 				},
 			},
-			dbFn: func(_ context.Context, _ database.Transaction, name, version string) (*models.PromptResponse, error) {
+			dbFn: func(_ context.Context, name, version string) (*models.PromptResponse, error) {
 				if name == "system-prompt" && version == "2.0.0" {
 					return &models.PromptResponse{
 						Prompt: models.PromptJSON{Name: "system-prompt", Version: "2.0.0", Content: "You are a coding assistant."},
@@ -1877,7 +1877,7 @@ func TestResolveAgentManifestPrompts(t *testing.T) {
 					{Name: "safety", RegistryPromptName: "safety-prompt"},
 				},
 			},
-			dbByNameFn: func(_ context.Context, _ database.Transaction, name string) (*models.PromptResponse, error) {
+			dbByNameFn: func(_ context.Context, name string) (*models.PromptResponse, error) {
 				if name == "safety-prompt" {
 					return &models.PromptResponse{
 						Prompt: models.PromptJSON{Name: "safety-prompt", Version: "1.2.0", Content: "Be safe."},
@@ -1896,7 +1896,7 @@ func TestResolveAgentManifestPrompts(t *testing.T) {
 					{RegistryPromptName: "fallback-prompt", RegistryPromptVersion: "1.0.0"},
 				},
 			},
-			dbFn: func(_ context.Context, _ database.Transaction, name, version string) (*models.PromptResponse, error) {
+			dbFn: func(_ context.Context, name, version string) (*models.PromptResponse, error) {
 				return &models.PromptResponse{
 					Prompt: models.PromptJSON{Name: name, Version: version, Content: "Fallback content."},
 				}, nil
@@ -1913,7 +1913,7 @@ func TestResolveAgentManifestPrompts(t *testing.T) {
 					{Name: "second", RegistryPromptName: "prompt-b", RegistryPromptVersion: "2.0.0"},
 				},
 			},
-			dbFn: func(_ context.Context, _ database.Transaction, name, version string) (*models.PromptResponse, error) {
+			dbFn: func(_ context.Context, name, version string) (*models.PromptResponse, error) {
 				switch name {
 				case "prompt-a":
 					return &models.PromptResponse{
@@ -1956,7 +1956,7 @@ func TestResolveAgentManifestPrompts(t *testing.T) {
 					{Name: "missing", RegistryPromptName: "nonexistent", RegistryPromptVersion: "1.0.0"},
 				},
 			},
-			dbFn: func(_ context.Context, _ database.Transaction, _, _ string) (*models.PromptResponse, error) {
+			dbFn: func(_ context.Context, _, _ string) (*models.PromptResponse, error) {
 				return nil, database.ErrNotFound
 			},
 			wantErr: `resolve prompt "nonexistent" version "1.0.0"`,
@@ -1969,7 +1969,7 @@ func TestResolveAgentManifestPrompts(t *testing.T) {
 					{Name: "bad", RegistryPromptName: "bad-prompt", RegistryPromptVersion: "1.0.0"},
 				},
 			},
-			dbFn: func(_ context.Context, _ database.Transaction, name, _ string) (*models.PromptResponse, error) {
+			dbFn: func(_ context.Context, name, _ string) (*models.PromptResponse, error) {
 				if name == "good-prompt" {
 					return &models.PromptResponse{
 						Prompt: models.PromptJSON{Name: name, Version: "1.0.0", Content: "Good"},
@@ -1987,7 +1987,7 @@ func TestResolveAgentManifestPrompts(t *testing.T) {
 				getPromptByNameFn:           tt.dbByNameFn,
 				getPromptByNameAndVersionFn: tt.dbFn,
 			}
-			svc := &registryServiceImpl{storeDB: database.NewServiceDatabase(mockDB)}
+			svc := &registryServiceImpl{storeDB: mockDB}
 
 			got, err := svc.ResolveAgentManifestPrompts(context.Background(), tt.manifest)
 			if tt.wantErr != "" {

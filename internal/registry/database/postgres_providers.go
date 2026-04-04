@@ -15,14 +15,14 @@ import (
 )
 
 // CreateProvider creates a provider record.
-func (db *PostgreSQL) CreateProvider(ctx context.Context, tx database.Transaction, in *models.CreateProviderInput) (*models.Provider, error) {
+func (db *PostgreSQL) CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
 	if in == nil {
 		return nil, database.ErrInvalidInput
 	}
 	if strings.TrimSpace(in.ID) == "" || strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Platform) == "" {
 		return nil, database.ErrInvalidInput
 	}
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	configJSON, err := json.Marshal(in.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal provider config: %w", err)
@@ -61,8 +61,8 @@ func (db *PostgreSQL) CreateProvider(ctx context.Context, tx database.Transactio
 }
 
 // ListProviders lists providers, optionally filtered by platform.
-func (db *PostgreSQL) ListProviders(ctx context.Context, tx database.Transaction, platform *string) ([]*models.Provider, error) {
-	executor := db.getExecutor(tx)
+func (db *PostgreSQL) ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error) {
+	executor := db.getExecutor()
 	query := `SELECT id, name, platform, COALESCE(config, '{}'::jsonb), created_at, updated_at FROM providers`
 	args := []any{}
 	if platform != nil && strings.TrimSpace(*platform) != "" {
@@ -99,8 +99,8 @@ func (db *PostgreSQL) ListProviders(ctx context.Context, tx database.Transaction
 }
 
 // GetProviderByID gets a provider by ID.
-func (db *PostgreSQL) GetProviderByID(ctx context.Context, tx database.Transaction, providerID string) (*models.Provider, error) {
-	executor := db.getExecutor(tx)
+func (db *PostgreSQL) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
+	executor := db.getExecutor()
 	query := `SELECT id, name, platform, COALESCE(config, '{}'::jsonb), created_at, updated_at FROM providers WHERE id = $1`
 	var p models.Provider
 	var configJSON []byte
@@ -122,11 +122,11 @@ func (db *PostgreSQL) GetProviderByID(ctx context.Context, tx database.Transacti
 }
 
 // UpdateProvider updates mutable provider fields.
-func (db *PostgreSQL) UpdateProvider(ctx context.Context, tx database.Transaction, providerID string, in *models.UpdateProviderInput) (*models.Provider, error) {
+func (db *PostgreSQL) UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error) {
 	if in == nil {
-		return db.GetProviderByID(ctx, tx, providerID)
+		return db.GetProviderByID(ctx, providerID)
 	}
-	current, err := db.GetProviderByID(ctx, tx, providerID)
+	current, err := db.GetProviderByID(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (db *PostgreSQL) UpdateProvider(ctx context.Context, tx database.Transactio
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal provider config: %w", err)
 	}
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `
 		UPDATE providers
 		SET name = $2, config = $3, updated_at = NOW()
@@ -169,8 +169,8 @@ func (db *PostgreSQL) UpdateProvider(ctx context.Context, tx database.Transactio
 }
 
 // DeleteProvider removes a provider by ID.
-func (db *PostgreSQL) DeleteProvider(ctx context.Context, tx database.Transaction, providerID string) error {
-	executor := db.getExecutor(tx)
+func (db *PostgreSQL) DeleteProvider(ctx context.Context, providerID string) error {
+	executor := db.getExecutor()
 	result, err := executor.Exec(ctx, `DELETE FROM providers WHERE id = $1`, providerID)
 	if err != nil {
 		return fmt.Errorf("failed to delete provider: %w", err)

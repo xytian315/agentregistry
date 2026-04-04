@@ -22,7 +22,6 @@ import (
 // ListServers returns paginated servers with filtering.
 func (db *PostgreSQL) ListServers(
 	ctx context.Context,
-	tx database.Transaction,
 	filter *database.ServerFilter,
 	cursor string,
 	limit int,
@@ -138,7 +137,7 @@ func (db *PostgreSQL) ListServers(
     `, selectClause, whereClause, orderClause, argIndex)
 	args = append(args, limit)
 
-	rows, err := db.getExecutor(tx).Query(ctx, query, args...)
+	rows, err := db.getExecutor().Query(ctx, query, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to query servers: %w", err)
 	}
@@ -200,7 +199,7 @@ func (db *PostgreSQL) ListServers(
 }
 
 // GetServerByName retrieves the latest version of a server by server name.
-func (db *PostgreSQL) GetServerByName(ctx context.Context, tx database.Transaction, serverName string) (*apiv0.ServerResponse, error) {
+func (db *PostgreSQL) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -225,7 +224,7 @@ func (db *PostgreSQL) GetServerByName(ctx context.Context, tx database.Transacti
 	var isLatest bool
 	var valueJSON []byte
 
-	err := db.getExecutor(tx).QueryRow(ctx, query, serverName).Scan(&name, &version, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON)
+	err := db.getExecutor().QueryRow(ctx, query, serverName).Scan(&name, &version, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
@@ -254,7 +253,7 @@ func (db *PostgreSQL) GetServerByName(ctx context.Context, tx database.Transacti
 }
 
 // GetServerByNameAndVersion retrieves a specific version of a server by server name and version.
-func (db *PostgreSQL) GetServerByNameAndVersion(ctx context.Context, tx database.Transaction, serverName string, version string) (*apiv0.ServerResponse, error) {
+func (db *PostgreSQL) GetServerByNameAndVersion(ctx context.Context, serverName string, version string) (*apiv0.ServerResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -279,7 +278,7 @@ func (db *PostgreSQL) GetServerByNameAndVersion(ctx context.Context, tx database
 	var publishedAt, updatedAt time.Time
 	var valueJSON []byte
 
-	err := db.getExecutor(tx).QueryRow(ctx, query, serverName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON)
+	err := db.getExecutor().QueryRow(ctx, query, serverName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
@@ -308,7 +307,7 @@ func (db *PostgreSQL) GetServerByNameAndVersion(ctx context.Context, tx database
 }
 
 // GetAllVersionsByServerName retrieves all versions of a server by server name.
-func (db *PostgreSQL) GetAllVersionsByServerName(ctx context.Context, tx database.Transaction, serverName string) ([]*apiv0.ServerResponse, error) {
+func (db *PostgreSQL) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -327,7 +326,7 @@ func (db *PostgreSQL) GetAllVersionsByServerName(ctx context.Context, tx databas
 		ORDER BY published_at DESC
 	`
 
-	rows, err := db.getExecutor(tx).Query(ctx, query, serverName)
+	rows, err := db.getExecutor().Query(ctx, query, serverName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query server versions: %w", err)
 	}
@@ -377,7 +376,7 @@ func (db *PostgreSQL) GetAllVersionsByServerName(ctx context.Context, tx databas
 }
 
 // CreateServer inserts a new server version with official metadata.
-func (db *PostgreSQL) CreateServer(ctx context.Context, tx database.Transaction, serverJSON *apiv0.ServerJSON, officialMeta *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
+func (db *PostgreSQL) CreateServer(ctx context.Context, serverJSON *apiv0.ServerJSON, officialMeta *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -407,7 +406,7 @@ func (db *PostgreSQL) CreateServer(ctx context.Context, tx database.Transaction,
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
-	_, err = db.getExecutor(tx).Exec(ctx, insertQuery,
+	_, err = db.getExecutor().Exec(ctx, insertQuery,
 		serverJSON.Name,
 		serverJSON.Version,
 		string(officialMeta.Status),
@@ -432,7 +431,7 @@ func (db *PostgreSQL) CreateServer(ctx context.Context, tx database.Transaction,
 }
 
 // UpdateServer updates an existing server record with new server details.
-func (db *PostgreSQL) UpdateServer(ctx context.Context, tx database.Transaction, serverName, version string, serverJSON *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+func (db *PostgreSQL) UpdateServer(ctx context.Context, serverName, version string, serverJSON *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -468,7 +467,7 @@ func (db *PostgreSQL) UpdateServer(ctx context.Context, tx database.Transaction,
 	var isLatest bool
 	var publishedAt, updatedAt time.Time
 
-	err = db.getExecutor(tx).QueryRow(ctx, query, valueJSON, serverName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest)
+	err = db.getExecutor().QueryRow(ctx, query, valueJSON, serverName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
@@ -492,7 +491,7 @@ func (db *PostgreSQL) UpdateServer(ctx context.Context, tx database.Transaction,
 }
 
 // SetServerStatus updates the status of a specific server version.
-func (db *PostgreSQL) SetServerStatus(ctx context.Context, tx database.Transaction, serverName, version string, status string) (*apiv0.ServerResponse, error) {
+func (db *PostgreSQL) SetServerStatus(ctx context.Context, serverName, version string, status string) (*apiv0.ServerResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -516,7 +515,7 @@ func (db *PostgreSQL) SetServerStatus(ctx context.Context, tx database.Transacti
 	var publishedAt, updatedAt time.Time
 	var valueJSON []byte
 
-	err := db.getExecutor(tx).QueryRow(ctx, query, status, serverName, version).Scan(&name, &vers, &currentStatus, &valueJSON, &publishedAt, &updatedAt, &isLatest)
+	err := db.getExecutor().QueryRow(ctx, query, status, serverName, version).Scan(&name, &vers, &currentStatus, &valueJSON, &publishedAt, &updatedAt, &isLatest)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
@@ -545,7 +544,7 @@ func (db *PostgreSQL) SetServerStatus(ctx context.Context, tx database.Transacti
 }
 
 // GetCurrentLatestVersion retrieves the current latest version of a server by server name.
-func (db *PostgreSQL) GetCurrentLatestVersion(ctx context.Context, tx database.Transaction, serverName string) (*apiv0.ServerResponse, error) {
+func (db *PostgreSQL) GetCurrentLatestVersion(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -557,7 +556,7 @@ func (db *PostgreSQL) GetCurrentLatestVersion(ctx context.Context, tx database.T
 		return nil, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	query := `
 		SELECT server_name, version, status, value, published_at, updated_at, is_latest
@@ -600,7 +599,7 @@ func (db *PostgreSQL) GetCurrentLatestVersion(ctx context.Context, tx database.T
 }
 
 // CountServerVersions counts the number of versions for a server.
-func (db *PostgreSQL) CountServerVersions(ctx context.Context, tx database.Transaction, serverName string) (int, error) {
+func (db *PostgreSQL) CountServerVersions(ctx context.Context, serverName string) (int, error) {
 	if ctx.Err() != nil {
 		return 0, ctx.Err()
 	}
@@ -612,7 +611,7 @@ func (db *PostgreSQL) CountServerVersions(ctx context.Context, tx database.Trans
 		return 0, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	query := `SELECT COUNT(*) FROM servers WHERE server_name = $1`
 
@@ -626,7 +625,7 @@ func (db *PostgreSQL) CountServerVersions(ctx context.Context, tx database.Trans
 }
 
 // CheckVersionExists checks if a specific version exists for a server.
-func (db *PostgreSQL) CheckVersionExists(ctx context.Context, tx database.Transaction, serverName, version string) (bool, error) {
+func (db *PostgreSQL) CheckVersionExists(ctx context.Context, serverName, version string) (bool, error) {
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
@@ -638,7 +637,7 @@ func (db *PostgreSQL) CheckVersionExists(ctx context.Context, tx database.Transa
 		return false, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	query := `SELECT EXISTS(SELECT 1 FROM servers WHERE server_name = $1 AND version = $2)`
 
@@ -652,7 +651,7 @@ func (db *PostgreSQL) CheckVersionExists(ctx context.Context, tx database.Transa
 }
 
 // UnmarkAsLatest marks the current latest version of a server as no longer latest.
-func (db *PostgreSQL) UnmarkAsLatest(ctx context.Context, tx database.Transaction, serverName string) error {
+func (db *PostgreSQL) UnmarkAsLatest(ctx context.Context, serverName string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -664,7 +663,7 @@ func (db *PostgreSQL) UnmarkAsLatest(ctx context.Context, tx database.Transactio
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	query := `UPDATE servers SET is_latest = false WHERE server_name = $1 AND is_latest = true`
 
@@ -677,12 +676,15 @@ func (db *PostgreSQL) UnmarkAsLatest(ctx context.Context, tx database.Transactio
 }
 
 // AcquireServerCreateLock acquires a transaction-scoped advisory lock for server creation.
-func (db *PostgreSQL) AcquireServerCreateLock(ctx context.Context, tx database.Transaction, serverName string) error {
+func (db *PostgreSQL) AcquireServerCreateLock(ctx context.Context, serverName string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
+	if db.tx == nil {
+		return fmt.Errorf("server create lock requires an active transaction")
+	}
 	lockKey := "server." + serverName
-	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", lockKey)
+	_, err := db.tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", lockKey)
 	if err != nil {
 		return fmt.Errorf("failed to acquire server create lock: %w", err)
 	}
@@ -690,7 +692,7 @@ func (db *PostgreSQL) AcquireServerCreateLock(ctx context.Context, tx database.T
 }
 
 // DeleteServer permanently removes a server version from the database.
-func (db *PostgreSQL) DeleteServer(ctx context.Context, tx database.Transaction, serverName, version string) error {
+func (db *PostgreSQL) DeleteServer(ctx context.Context, serverName, version string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -702,7 +704,7 @@ func (db *PostgreSQL) DeleteServer(ctx context.Context, tx database.Transaction,
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	var wasLatest bool
 	err := executor.QueryRow(ctx,
@@ -745,7 +747,7 @@ func (db *PostgreSQL) DeleteServer(ctx context.Context, tx database.Transaction,
 }
 
 // SetServerEmbedding stores semantic embedding metadata for a server version.
-func (db *PostgreSQL) SetServerEmbedding(ctx context.Context, tx database.Transaction, serverName, version string, embedding *database.SemanticEmbedding) error {
+func (db *PostgreSQL) SetServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -757,7 +759,7 @@ func (db *PostgreSQL) SetServerEmbedding(ctx context.Context, tx database.Transa
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	var (
 		query string
@@ -814,7 +816,7 @@ func (db *PostgreSQL) SetServerEmbedding(ctx context.Context, tx database.Transa
 }
 
 // GetServerEmbeddingMetadata retrieves embedding metadata for a server version without loading the vector.
-func (db *PostgreSQL) GetServerEmbeddingMetadata(ctx context.Context, tx database.Transaction, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
+func (db *PostgreSQL) GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -826,7 +828,7 @@ func (db *PostgreSQL) GetServerEmbeddingMetadata(ctx context.Context, tx databas
 		return nil, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `
 		SELECT
 			semantic_embedding IS NOT NULL AS has_embedding,
@@ -886,7 +888,7 @@ func (db *PostgreSQL) GetServerEmbeddingMetadata(ctx context.Context, tx databas
 	return meta, nil
 }
 
-func (db *PostgreSQL) UpsertServerReadme(ctx context.Context, tx database.Transaction, readme *database.ServerReadme) error {
+func (db *PostgreSQL) UpsertServerReadme(ctx context.Context, readme *database.ServerReadme) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -918,7 +920,7 @@ func (db *PostgreSQL) UpsertServerReadme(ctx context.Context, tx database.Transa
 		readme.FetchedAt = time.Now()
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `
         INSERT INTO server_readmes (server_name, version, content, content_type, size_bytes, sha256, fetched_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -945,7 +947,7 @@ func (db *PostgreSQL) UpsertServerReadme(ctx context.Context, tx database.Transa
 	return nil
 }
 
-func (db *PostgreSQL) GetServerReadme(ctx context.Context, tx database.Transaction, serverName, version string) (*database.ServerReadme, error) {
+func (db *PostgreSQL) GetServerReadme(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -957,7 +959,7 @@ func (db *PostgreSQL) GetServerReadme(ctx context.Context, tx database.Transacti
 		return nil, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `
         SELECT server_name, version, content, content_type, size_bytes, sha256, fetched_at
         FROM server_readmes
@@ -969,7 +971,7 @@ func (db *PostgreSQL) GetServerReadme(ctx context.Context, tx database.Transacti
 	return scanServerReadme(row)
 }
 
-func (db *PostgreSQL) GetLatestServerReadme(ctx context.Context, tx database.Transaction, serverName string) (*database.ServerReadme, error) {
+func (db *PostgreSQL) GetLatestServerReadme(ctx context.Context, serverName string) (*database.ServerReadme, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -981,7 +983,7 @@ func (db *PostgreSQL) GetLatestServerReadme(ctx context.Context, tx database.Tra
 		return nil, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `
         SELECT sr.server_name, sr.version, sr.content, sr.content_type, sr.size_bytes, sr.sha256, sr.fetched_at
         FROM server_readmes sr

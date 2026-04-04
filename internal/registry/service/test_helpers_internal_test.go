@@ -41,7 +41,7 @@ func bundleFromStore(store database.Store) storeBundle {
 }
 
 type registryServiceImpl struct {
-	storeDB            database.ServiceDatabase
+	storeDB            database.Store
 	serverRepo         database.ServerStore
 	agentRepo          database.AgentStore
 	skillRepo          database.SkillStore
@@ -54,7 +54,7 @@ type registryServiceImpl struct {
 	logger             *slog.Logger
 }
 
-func (s *registryServiceImpl) serviceDatabase() database.ServiceDatabase {
+func (s *registryServiceImpl) serviceDatabase() database.Store {
 	return s.storeDB
 }
 
@@ -87,7 +87,7 @@ func (s *registryServiceImpl) readStores() storeBundle {
 func (s *registryServiceImpl) inTransaction(ctx context.Context, fn func(context.Context, storeBundle) error) error {
 	storeDB := s.serviceDatabase()
 	if storeDB == nil {
-		return errors.New("service database is not configured")
+		return errors.New("store is not configured")
 	}
 
 	return storeDB.InTransaction(ctx, func(txCtx context.Context, store database.Store) error {

@@ -16,7 +16,7 @@ import (
 )
 
 // ListSkills returns paginated skills with filtering
-func (db *PostgreSQL) ListSkills(ctx context.Context, tx database.Transaction, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+func (db *PostgreSQL) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -90,7 +90,7 @@ func (db *PostgreSQL) ListSkills(ctx context.Context, tx database.Transaction, f
     `, whereClause, argIndex)
 	args = append(args, limit)
 
-	rows, err := db.getExecutor(tx).Query(ctx, query, args...)
+	rows, err := db.getExecutor().Query(ctx, query, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to query skills: %w", err)
 	}
@@ -137,7 +137,7 @@ func (db *PostgreSQL) ListSkills(ctx context.Context, tx database.Transaction, f
 	return results, nextCursor, nil
 }
 
-func (db *PostgreSQL) GetSkillByName(ctx context.Context, tx database.Transaction, skillName string) (*models.SkillResponse, error) {
+func (db *PostgreSQL) GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -160,7 +160,7 @@ func (db *PostgreSQL) GetSkillByName(ctx context.Context, tx database.Transactio
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
 	var valueJSON []byte
-	if err := db.getExecutor(tx).QueryRow(ctx, query, skillName).Scan(&name, &version, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, skillName).Scan(&name, &version, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -183,7 +183,7 @@ func (db *PostgreSQL) GetSkillByName(ctx context.Context, tx database.Transactio
 	}, nil
 }
 
-func (db *PostgreSQL) GetSkillByNameAndVersion(ctx context.Context, tx database.Transaction, skillName, version string) (*models.SkillResponse, error) {
+func (db *PostgreSQL) GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -205,7 +205,7 @@ func (db *PostgreSQL) GetSkillByNameAndVersion(ctx context.Context, tx database.
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
 	var valueJSON []byte
-	if err := db.getExecutor(tx).QueryRow(ctx, query, skillName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, skillName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -228,7 +228,7 @@ func (db *PostgreSQL) GetSkillByNameAndVersion(ctx context.Context, tx database.
 	}, nil
 }
 
-func (db *PostgreSQL) GetAllVersionsBySkillName(ctx context.Context, tx database.Transaction, skillName string) ([]*models.SkillResponse, error) {
+func (db *PostgreSQL) GetAllVersionsBySkillName(ctx context.Context, skillName string) ([]*models.SkillResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -246,7 +246,7 @@ func (db *PostgreSQL) GetAllVersionsBySkillName(ctx context.Context, tx database
         WHERE skill_name = $1
         ORDER BY published_at DESC
     `
-	rows, err := db.getExecutor(tx).Query(ctx, query, skillName)
+	rows, err := db.getExecutor().Query(ctx, query, skillName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query skill versions: %w", err)
 	}
@@ -285,7 +285,7 @@ func (db *PostgreSQL) GetAllVersionsBySkillName(ctx context.Context, tx database
 	return results, nil
 }
 
-func (db *PostgreSQL) CreateSkill(ctx context.Context, tx database.Transaction, skillJSON *models.SkillJSON, officialMeta *models.SkillRegistryExtensions) (*models.SkillResponse, error) {
+func (db *PostgreSQL) CreateSkill(ctx context.Context, skillJSON *models.SkillJSON, officialMeta *models.SkillRegistryExtensions) (*models.SkillResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -311,7 +311,7 @@ func (db *PostgreSQL) CreateSkill(ctx context.Context, tx database.Transaction, 
         INSERT INTO skills (skill_name, version, status, published_at, updated_at, is_latest, value)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
     `
-	if _, err := db.getExecutor(tx).Exec(ctx, insert,
+	if _, err := db.getExecutor().Exec(ctx, insert,
 		skillJSON.Name,
 		skillJSON.Version,
 		officialMeta.Status,
@@ -330,7 +330,7 @@ func (db *PostgreSQL) CreateSkill(ctx context.Context, tx database.Transaction, 
 	}, nil
 }
 
-func (db *PostgreSQL) UpdateSkill(ctx context.Context, tx database.Transaction, skillName, version string, skillJSON *models.SkillJSON) (*models.SkillResponse, error) {
+func (db *PostgreSQL) UpdateSkill(ctx context.Context, skillName, version string, skillJSON *models.SkillJSON) (*models.SkillResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -361,7 +361,7 @@ func (db *PostgreSQL) UpdateSkill(ctx context.Context, tx database.Transaction, 
 	var name, vers, status string
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
-	if err := db.getExecutor(tx).QueryRow(ctx, query, valueJSON, skillName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, valueJSON, skillName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -380,7 +380,7 @@ func (db *PostgreSQL) UpdateSkill(ctx context.Context, tx database.Transaction, 
 	}, nil
 }
 
-func (db *PostgreSQL) SetSkillStatus(ctx context.Context, tx database.Transaction, skillName, version string, status string) (*models.SkillResponse, error) {
+func (db *PostgreSQL) SetSkillStatus(ctx context.Context, skillName, version string, status string) (*models.SkillResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -402,7 +402,7 @@ func (db *PostgreSQL) SetSkillStatus(ctx context.Context, tx database.Transactio
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
 	var valueJSON []byte
-	if err := db.getExecutor(tx).QueryRow(ctx, query, status, skillName, version).Scan(&name, &vers, &currentStatus, &valueJSON, &publishedAt, &updatedAt, &isLatest); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, status, skillName, version).Scan(&name, &vers, &currentStatus, &valueJSON, &publishedAt, &updatedAt, &isLatest); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -425,7 +425,7 @@ func (db *PostgreSQL) SetSkillStatus(ctx context.Context, tx database.Transactio
 	}, nil
 }
 
-func (db *PostgreSQL) GetCurrentLatestSkillVersion(ctx context.Context, tx database.Transaction, skillName string) (*models.SkillResponse, error) {
+func (db *PostgreSQL) GetCurrentLatestSkillVersion(ctx context.Context, skillName string) (*models.SkillResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -437,7 +437,7 @@ func (db *PostgreSQL) GetCurrentLatestSkillVersion(ctx context.Context, tx datab
 		return nil, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `
         SELECT skill_name, version, status, value, published_at, updated_at, is_latest
         FROM skills
@@ -471,7 +471,7 @@ func (db *PostgreSQL) GetCurrentLatestSkillVersion(ctx context.Context, tx datab
 	}, nil
 }
 
-func (db *PostgreSQL) CountSkillVersions(ctx context.Context, tx database.Transaction, skillName string) (int, error) {
+func (db *PostgreSQL) CountSkillVersions(ctx context.Context, skillName string) (int, error) {
 	if ctx.Err() != nil {
 		return 0, ctx.Err()
 	}
@@ -483,7 +483,7 @@ func (db *PostgreSQL) CountSkillVersions(ctx context.Context, tx database.Transa
 		return 0, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `SELECT COUNT(*) FROM skills WHERE skill_name = $1`
 	var count int
 	if err := executor.QueryRow(ctx, query, skillName).Scan(&count); err != nil {
@@ -492,7 +492,7 @@ func (db *PostgreSQL) CountSkillVersions(ctx context.Context, tx database.Transa
 	return count, nil
 }
 
-func (db *PostgreSQL) CheckSkillVersionExists(ctx context.Context, tx database.Transaction, skillName, version string) (bool, error) {
+func (db *PostgreSQL) CheckSkillVersionExists(ctx context.Context, skillName, version string) (bool, error) {
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
@@ -504,7 +504,7 @@ func (db *PostgreSQL) CheckSkillVersionExists(ctx context.Context, tx database.T
 		return false, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `SELECT EXISTS(SELECT 1 FROM skills WHERE skill_name = $1 AND version = $2)`
 	var exists bool
 	if err := executor.QueryRow(ctx, query, skillName, version).Scan(&exists); err != nil {
@@ -513,7 +513,7 @@ func (db *PostgreSQL) CheckSkillVersionExists(ctx context.Context, tx database.T
 	return exists, nil
 }
 
-func (db *PostgreSQL) UnmarkSkillAsLatest(ctx context.Context, tx database.Transaction, skillName string) error {
+func (db *PostgreSQL) UnmarkSkillAsLatest(ctx context.Context, skillName string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -527,7 +527,7 @@ func (db *PostgreSQL) UnmarkSkillAsLatest(ctx context.Context, tx database.Trans
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `UPDATE skills SET is_latest = false WHERE skill_name = $1 AND is_latest = true`
 	if _, err := executor.Exec(ctx, query, skillName); err != nil {
 		return fmt.Errorf("failed to unmark latest skill version: %w", err)
@@ -536,7 +536,7 @@ func (db *PostgreSQL) UnmarkSkillAsLatest(ctx context.Context, tx database.Trans
 }
 
 // DeleteSkill permanently removes a skill version from the database.
-func (db *PostgreSQL) DeleteSkill(ctx context.Context, tx database.Transaction, skillName, version string) error {
+func (db *PostgreSQL) DeleteSkill(ctx context.Context, skillName, version string) error {
 	if err := db.authz.Check(ctx, auth.PermissionActionDelete, auth.Resource{
 		Name: skillName,
 		Type: auth.PermissionArtifactTypeSkill,
@@ -544,7 +544,7 @@ func (db *PostgreSQL) DeleteSkill(ctx context.Context, tx database.Transaction, 
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	// Check if the version being deleted is the current latest.
 	var wasLatest bool

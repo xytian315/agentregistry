@@ -38,7 +38,7 @@ type Registry interface {
 }
 
 type Dependencies struct {
-	StoreDB            database.ServiceDatabase
+	StoreDB            database.Store
 	Servers            database.ServerStore
 	Config             *config.Config
 	EmbeddingsProvider embeddings.Provider
@@ -46,7 +46,7 @@ type Dependencies struct {
 }
 
 type Service struct {
-	storeDB            database.ServiceDatabase
+	storeDB            database.Store
 	servers            database.ServerStore
 	cfg                *config.Config
 	embeddingsProvider embeddings.Provider

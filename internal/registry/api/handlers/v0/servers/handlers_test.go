@@ -31,7 +31,7 @@ import (
 
 const semanticEmbeddingDimensions = 1536
 
-func newServerEndpointServices(storeDB database.ServiceDatabase, cfg *config.Config, embeddingProvider embeddings.Provider) (*serversvc.Service, *deploymentsvc.Service) {
+func newServerEndpointServices(storeDB database.Store, cfg *config.Config, embeddingProvider embeddings.Provider) (*serversvc.Service, *deploymentsvc.Service) {
 	serverService := serversvc.New(serversvc.Dependencies{
 		StoreDB:            storeDB,
 		Config:             cfg,

@@ -134,15 +134,14 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 		}
 	}
 
-	serviceDB := database.NewServiceDatabase(db)
-	providerService := providersvc.New(providersvc.Dependencies{StoreDB: serviceDB})
+	providerService := providersvc.New(providersvc.Dependencies{StoreDB: db})
 	serverService := serversvc.New(serversvc.Dependencies{
-		StoreDB:            serviceDB,
+		StoreDB:            db,
 		Config:             cfg,
 		EmbeddingsProvider: embeddingProvider,
 	})
 	agentService := agentsvc.New(agentsvc.Dependencies{
-		StoreDB:            serviceDB,
+		StoreDB:            db,
 		Config:             cfg,
 		EmbeddingsProvider: embeddingProvider,
 	})
@@ -155,10 +154,10 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 		"kubernetes": kubernetes.NewKubernetesDeploymentAdapter(providerService, serverService, agentService),
 	}
 	maps.Copy(deploymentPlatforms, options.DeploymentPlatforms)
-	skillService := skillsvc.New(skillsvc.Dependencies{StoreDB: serviceDB})
-	promptService := promptsvc.New(promptsvc.Dependencies{StoreDB: serviceDB})
+	skillService := skillsvc.New(skillsvc.Dependencies{StoreDB: db})
+	promptService := promptsvc.New(promptsvc.Dependencies{StoreDB: db})
 	deploymentService := deploymentsvc.New(deploymentsvc.Dependencies{
-		StoreDB:            serviceDB,
+		StoreDB:            db,
 		DeploymentAdapters: deploymentPlatforms,
 	})
 	agentRouteService := agentService

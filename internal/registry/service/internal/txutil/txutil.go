@@ -7,22 +7,22 @@ import (
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 )
 
-var ErrServiceDatabaseNotConfigured = errors.New("service database is not configured")
+var ErrStoreNotConfigured = errors.New("store is not configured")
 
-func Run(ctx context.Context, storeDB database.ServiceDatabase, fn func(context.Context, database.Store) error) error {
-	if storeDB == nil {
-		return ErrServiceDatabaseNotConfigured
+func Run(ctx context.Context, store database.Store, fn func(context.Context, database.Store) error) error {
+	if store == nil {
+		return ErrStoreNotConfigured
 	}
 
-	return storeDB.InTransaction(ctx, fn)
+	return store.InTransaction(ctx, fn)
 }
 
-func RunT[T any](ctx context.Context, storeDB database.ServiceDatabase, fn func(context.Context, database.Store) (T, error)) (T, error) {
+func RunT[T any](ctx context.Context, store database.Store, fn func(context.Context, database.Store) (T, error)) (T, error) {
 	var result T
 	var fnErr error
 
-	err := Run(ctx, storeDB, func(txCtx context.Context, store database.Store) error {
-		result, fnErr = fn(txCtx, store)
+	err := Run(ctx, store, func(txCtx context.Context, txStore database.Store) error {
+		result, fnErr = fn(txCtx, txStore)
 		return fnErr
 	})
 	if err != nil {

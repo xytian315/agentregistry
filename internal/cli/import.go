@@ -15,7 +15,6 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/importer"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
-	regdb "github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	"github.com/spf13/cobra"
 )
 
@@ -66,8 +65,7 @@ var ImportCmd = &cobra.Command{
 			}
 		}()
 
-		serviceDB := regdb.NewServiceDatabase(db)
-		serverService := serversvc.New(serversvc.Dependencies{StoreDB: serviceDB, Config: cfg})
+		serverService := serversvc.New(serversvc.Dependencies{StoreDB: db, Config: cfg})
 
 		// Build HTTP client and headers for importer
 		httpClient := &http.Client{Timeout: importTimeout}

@@ -15,7 +15,7 @@ import (
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 )
 
-func (db *PostgreSQL) ListPrompts(ctx context.Context, tx database.Transaction, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
+func (db *PostgreSQL) ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -84,7 +84,7 @@ func (db *PostgreSQL) ListPrompts(ctx context.Context, tx database.Transaction, 
     `, whereClause, argIndex)
 	args = append(args, limit)
 
-	rows, err := db.getExecutor(tx).Query(ctx, query, args...)
+	rows, err := db.getExecutor().Query(ctx, query, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to query prompts: %w", err)
 	}
@@ -131,7 +131,7 @@ func (db *PostgreSQL) ListPrompts(ctx context.Context, tx database.Transaction, 
 	return results, nextCursor, nil
 }
 
-func (db *PostgreSQL) GetPromptByName(ctx context.Context, tx database.Transaction, promptName string) (*models.PromptResponse, error) {
+func (db *PostgreSQL) GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -154,7 +154,7 @@ func (db *PostgreSQL) GetPromptByName(ctx context.Context, tx database.Transacti
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
 	var valueJSON []byte
-	if err := db.getExecutor(tx).QueryRow(ctx, query, promptName).Scan(&name, &version, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, promptName).Scan(&name, &version, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -177,7 +177,7 @@ func (db *PostgreSQL) GetPromptByName(ctx context.Context, tx database.Transacti
 	}, nil
 }
 
-func (db *PostgreSQL) GetPromptByNameAndVersion(ctx context.Context, tx database.Transaction, promptName, version string) (*models.PromptResponse, error) {
+func (db *PostgreSQL) GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -199,7 +199,7 @@ func (db *PostgreSQL) GetPromptByNameAndVersion(ctx context.Context, tx database
 	var publishedAt, updatedAt time.Time
 	var isLatest bool
 	var valueJSON []byte
-	if err := db.getExecutor(tx).QueryRow(ctx, query, promptName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
+	if err := db.getExecutor().QueryRow(ctx, query, promptName, version).Scan(&name, &vers, &status, &publishedAt, &updatedAt, &isLatest, &valueJSON); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, database.ErrNotFound
 		}
@@ -222,7 +222,7 @@ func (db *PostgreSQL) GetPromptByNameAndVersion(ctx context.Context, tx database
 	}, nil
 }
 
-func (db *PostgreSQL) GetAllVersionsByPromptName(ctx context.Context, tx database.Transaction, promptName string) ([]*models.PromptResponse, error) {
+func (db *PostgreSQL) GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*models.PromptResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -240,7 +240,7 @@ func (db *PostgreSQL) GetAllVersionsByPromptName(ctx context.Context, tx databas
         WHERE prompt_name = $1
         ORDER BY published_at DESC
     `
-	rows, err := db.getExecutor(tx).Query(ctx, query, promptName)
+	rows, err := db.getExecutor().Query(ctx, query, promptName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query prompt versions: %w", err)
 	}
@@ -279,7 +279,7 @@ func (db *PostgreSQL) GetAllVersionsByPromptName(ctx context.Context, tx databas
 	return results, nil
 }
 
-func (db *PostgreSQL) CreatePrompt(ctx context.Context, tx database.Transaction, promptJSON *models.PromptJSON, officialMeta *models.PromptRegistryExtensions) (*models.PromptResponse, error) {
+func (db *PostgreSQL) CreatePrompt(ctx context.Context, promptJSON *models.PromptJSON, officialMeta *models.PromptRegistryExtensions) (*models.PromptResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -305,7 +305,7 @@ func (db *PostgreSQL) CreatePrompt(ctx context.Context, tx database.Transaction,
         INSERT INTO prompts (prompt_name, version, status, published_at, updated_at, is_latest, value)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
     `
-	if _, err := db.getExecutor(tx).Exec(ctx, insert,
+	if _, err := db.getExecutor().Exec(ctx, insert,
 		promptJSON.Name,
 		promptJSON.Version,
 		officialMeta.Status,
@@ -324,7 +324,7 @@ func (db *PostgreSQL) CreatePrompt(ctx context.Context, tx database.Transaction,
 	}, nil
 }
 
-func (db *PostgreSQL) GetCurrentLatestPromptVersion(ctx context.Context, tx database.Transaction, promptName string) (*models.PromptResponse, error) {
+func (db *PostgreSQL) GetCurrentLatestPromptVersion(ctx context.Context, promptName string) (*models.PromptResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -336,7 +336,7 @@ func (db *PostgreSQL) GetCurrentLatestPromptVersion(ctx context.Context, tx data
 		return nil, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `
         SELECT prompt_name, version, status, value, published_at, updated_at, is_latest
         FROM prompts
@@ -370,7 +370,7 @@ func (db *PostgreSQL) GetCurrentLatestPromptVersion(ctx context.Context, tx data
 	}, nil
 }
 
-func (db *PostgreSQL) CountPromptVersions(ctx context.Context, tx database.Transaction, promptName string) (int, error) {
+func (db *PostgreSQL) CountPromptVersions(ctx context.Context, promptName string) (int, error) {
 	if ctx.Err() != nil {
 		return 0, ctx.Err()
 	}
@@ -382,7 +382,7 @@ func (db *PostgreSQL) CountPromptVersions(ctx context.Context, tx database.Trans
 		return 0, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `SELECT COUNT(*) FROM prompts WHERE prompt_name = $1`
 	var count int
 	if err := executor.QueryRow(ctx, query, promptName).Scan(&count); err != nil {
@@ -391,7 +391,7 @@ func (db *PostgreSQL) CountPromptVersions(ctx context.Context, tx database.Trans
 	return count, nil
 }
 
-func (db *PostgreSQL) CheckPromptVersionExists(ctx context.Context, tx database.Transaction, promptName, version string) (bool, error) {
+func (db *PostgreSQL) CheckPromptVersionExists(ctx context.Context, promptName, version string) (bool, error) {
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
@@ -403,7 +403,7 @@ func (db *PostgreSQL) CheckPromptVersionExists(ctx context.Context, tx database.
 		return false, err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `SELECT EXISTS(SELECT 1 FROM prompts WHERE prompt_name = $1 AND version = $2)`
 	var exists bool
 	if err := executor.QueryRow(ctx, query, promptName, version).Scan(&exists); err != nil {
@@ -412,7 +412,7 @@ func (db *PostgreSQL) CheckPromptVersionExists(ctx context.Context, tx database.
 	return exists, nil
 }
 
-func (db *PostgreSQL) UnmarkPromptAsLatest(ctx context.Context, tx database.Transaction, promptName string) error {
+func (db *PostgreSQL) UnmarkPromptAsLatest(ctx context.Context, promptName string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -424,7 +424,7 @@ func (db *PostgreSQL) UnmarkPromptAsLatest(ctx context.Context, tx database.Tran
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 	query := `UPDATE prompts SET is_latest = false WHERE prompt_name = $1 AND is_latest = true`
 	if _, err := executor.Exec(ctx, query, promptName); err != nil {
 		return fmt.Errorf("failed to unmark latest prompt version: %w", err)
@@ -432,7 +432,7 @@ func (db *PostgreSQL) UnmarkPromptAsLatest(ctx context.Context, tx database.Tran
 	return nil
 }
 
-func (db *PostgreSQL) DeletePrompt(ctx context.Context, tx database.Transaction, promptName, version string) error {
+func (db *PostgreSQL) DeletePrompt(ctx context.Context, promptName, version string) error {
 	if err := db.authz.Check(ctx, auth.PermissionActionDelete, auth.Resource{
 		Name: promptName,
 		Type: auth.PermissionArtifactTypePrompt,
@@ -440,7 +440,7 @@ func (db *PostgreSQL) DeletePrompt(ctx context.Context, tx database.Transaction,
 		return err
 	}
 
-	executor := db.getExecutor(tx)
+	executor := db.getExecutor()
 
 	// Check if the version being deleted is the current latest.
 	var wasLatest bool
