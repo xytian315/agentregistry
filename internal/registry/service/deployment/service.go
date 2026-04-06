@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/agentregistry-dev/agentregistry/internal/registry/service/internal/deployutil"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
@@ -33,7 +34,7 @@ func IsUnsupportedDeploymentPlatformError(err error) bool {
 
 type Dependencies struct {
 	StoreDB            database.Store
-	Providers          database.ProviderStore
+	Providers          providersvc.Registry
 	Servers            database.ServerStore
 	Agents             database.AgentStore
 	Deployments        database.DeploymentStore
@@ -59,7 +60,7 @@ type Registry interface {
 }
 
 type Service struct {
-	providers   database.ProviderStore
+	providers   providersvc.Registry
 	servers     database.ServerStore
 	agents      database.AgentStore
 	deployments database.DeploymentStore
@@ -71,7 +72,7 @@ var _ Registry = (*Service)(nil)
 func New(deps Dependencies) Registry {
 	providers := deps.Providers
 	if providers == nil {
-		providers = deps.StoreDB
+		providers = providersvc.New(providersvc.Dependencies{StoreDB: deps.StoreDB})
 	}
 	servers := deps.Servers
 	if servers == nil {

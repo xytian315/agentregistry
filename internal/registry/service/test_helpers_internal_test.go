@@ -10,6 +10,7 @@ import (
 	platformtypes "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
 	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	promptsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/prompt"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
@@ -128,6 +129,11 @@ func (s *registryServiceImpl) promptService() promptsvc.Registry {
 	return promptsvc.New(promptsvc.Dependencies{StoreDB: s.storeDB, Prompts: stores.prompts})
 }
 
+func (s *registryServiceImpl) providerService() providersvc.Registry {
+	stores := s.readStores()
+	return providersvc.New(providersvc.Dependencies{StoreDB: s.storeDB, Providers: stores.providers})
+}
+
 type deploymentServiceImpl struct {
 	deploymentsvc.Registry
 }
@@ -140,7 +146,7 @@ func (s *registryServiceImpl) deploymentService() *deploymentServiceImpl {
 	stores := s.readStores()
 	return &deploymentServiceImpl{Registry: deploymentsvc.New(deploymentsvc.Dependencies{
 		StoreDB:            s.storeDB,
-		Providers:          stores.providers,
+		Providers:          s.providerService(),
 		Servers:            stores.servers,
 		Agents:             stores.agents,
 		Deployments:        stores.deployments,

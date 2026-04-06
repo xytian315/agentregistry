@@ -31,6 +31,7 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/service"
 	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	promptsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/prompt"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
@@ -143,19 +144,21 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 		Config:             cfg,
 		EmbeddingsProvider: embeddingProvider,
 	})
+	providerService := providersvc.New(providersvc.Dependencies{StoreDB: db})
 
 	// Initialize extension registries once and use them for both routing and service behavior.
-	providerPlatforms := v0providers.DefaultProviderPlatformAdapters(db)
+	providerPlatforms := v0providers.DefaultProviderPlatformAdapters(providerService)
 	maps.Copy(providerPlatforms, options.ProviderPlatforms)
 	deploymentPlatforms := map[string]types.DeploymentPlatformAdapter{
 		"local":      local.NewLocalDeploymentAdapter(serverService, agentService, cfg.RuntimeDir, cfg.AgentGatewayPort),
-		"kubernetes": kubernetes.NewKubernetesDeploymentAdapter(db, serverService, agentService),
+		"kubernetes": kubernetes.NewKubernetesDeploymentAdapter(providerService, serverService, agentService),
 	}
 	maps.Copy(deploymentPlatforms, options.DeploymentPlatforms)
 	skillService := skillsvc.New(skillsvc.Dependencies{StoreDB: db})
 	promptService := promptsvc.New(promptsvc.Dependencies{StoreDB: db})
 	deploymentService := deploymentsvc.New(deploymentsvc.Dependencies{
 		StoreDB:            db,
+		Providers:          providerService,
 		DeploymentAdapters: deploymentPlatforms,
 	})
 	agentRouteService := agentService
@@ -236,7 +239,7 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 	}
 
 	// Initialize HTTP server
-	baseServer := api.NewServer(cfg, serverService, agentRouteService, skillService, promptService, db, deploymentService, metrics, versionInfo, options.UIHandler, authnProvider, routeOpts)
+	baseServer := api.NewServer(cfg, serverService, agentRouteService, skillService, promptService, providerService, deploymentService, metrics, versionInfo, options.UIHandler, authnProvider, routeOpts)
 
 	var server types.Server
 	if options.HTTPServerFactory != nil {

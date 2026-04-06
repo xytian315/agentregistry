@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	handlerext "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/extensions"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	"github.com/danielgtaylor/huma/v2"
@@ -113,7 +114,7 @@ func listProvidersForPlatform(ctx context.Context, extensions handlerext.Platfor
 	return providers, nil
 }
 
-func ResolveProviderByID(ctx context.Context, providerSvc database.ProviderStore, extensions handlerext.PlatformExtensions, providerID, platformHint string) (*models.Provider, error) {
+func ResolveProviderByID(ctx context.Context, providerSvc providersvc.Registry, extensions handlerext.PlatformExtensions, providerID, platformHint string) (*models.Provider, error) {
 	hintedProvider, err := getProviderByHint(ctx, extensions, providerID, platformHint)
 	if hintedProvider != nil || err != nil {
 		return hintedProvider, err
@@ -146,7 +147,7 @@ func ResolveProviderByID(ctx context.Context, providerSvc database.ProviderStore
 }
 
 // RegisterProvidersEndpoints registers provider CRUD endpoints.
-func RegisterProvidersEndpoints(api huma.API, basePath string, providerSvc database.ProviderStore, extensions handlerext.PlatformExtensions) {
+func RegisterProvidersEndpoints(api huma.API, basePath string, providerSvc providersvc.Registry, extensions handlerext.PlatformExtensions) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-providers",
 		Method:      http.MethodGet,
