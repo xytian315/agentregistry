@@ -30,7 +30,7 @@ type splitDomainViewMockDB struct {
 	getProviderByIDFn func(ctx context.Context, providerID string) (*models.Provider, error)
 }
 
-func newRegistryTestServerService(storeDB database.Store, cfg *config.Config) *serversvc.Service {
+func newRegistryTestServerService(storeDB database.Store, cfg *config.Config) serversvc.Registry {
 	return serversvc.New(serversvc.Dependencies{StoreDB: storeDB, Config: cfg})
 }
 

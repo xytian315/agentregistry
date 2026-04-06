@@ -139,12 +139,12 @@ func handle404(w http.ResponseWriter, r *http.Request) {
 // Note: authz is handled at the DB/service layer, not at the API layer.
 func NewHumaAPI(
 	cfg *config.Config,
-	serverSvc *serversvc.Service,
-	agentSvc *agentsvc.Service,
-	skillSvc *skillsvc.Service,
-	promptSvc *promptsvc.Service,
+	serverSvc serversvc.Registry,
+	agentSvc agentsvc.Registry,
+	skillSvc skillsvc.Registry,
+	promptSvc promptsvc.Registry,
 	providerSvc database.ProviderStore,
-	deploymentSvc *deploymentsvc.Service,
+	deploymentSvc deploymentsvc.Registry,
 	mux *http.ServeMux,
 	metrics *telemetry.Metrics,
 	versionInfo *apitypes.VersionBody,

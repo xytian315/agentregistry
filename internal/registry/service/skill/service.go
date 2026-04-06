@@ -20,12 +20,24 @@ type Dependencies struct {
 	Skills  database.SkillStore
 }
 
+type Registry interface {
+	ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error)
+	GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error)
+	GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error)
+	GetAllVersionsBySkillName(ctx context.Context, skillName string) ([]*models.SkillResponse, error)
+	CreateSkill(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error)
+	DeleteSkill(ctx context.Context, skillName, version string) error
+	CreateSkillInTransaction(ctx context.Context, skills database.SkillStore, req *models.SkillJSON) (*models.SkillResponse, error)
+}
+
 type Service struct {
 	storeDB database.Store
 	skills  database.SkillStore
 }
 
-func New(deps Dependencies) *Service {
+var _ Registry = (*Service)(nil)
+
+func New(deps Dependencies) Registry {
 	skills := deps.Skills
 	if skills == nil {
 		skills = deps.StoreDB

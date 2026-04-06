@@ -16,11 +16,11 @@ import (
 
 type kubernetesDeploymentAdapter struct {
 	providerService database.ProviderStore
-	serverService   *serversvc.Service
-	agentService    *agentsvc.Service
+	serverService   serversvc.Registry
+	agentService    agentsvc.Registry
 }
 
-func NewKubernetesDeploymentAdapter(providerService database.ProviderStore, serverService *serversvc.Service, agentService *agentsvc.Service) *kubernetesDeploymentAdapter {
+func NewKubernetesDeploymentAdapter(providerService database.ProviderStore, serverService serversvc.Registry, agentService agentsvc.Registry) *kubernetesDeploymentAdapter {
 	return &kubernetesDeploymentAdapter{providerService: providerService, serverService: serverService, agentService: agentService}
 }
 

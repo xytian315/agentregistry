@@ -79,7 +79,7 @@ func removeDeploymentHTTPError(err error) error {
 }
 
 // RegisterDeploymentsEndpoints registers all deployment-related endpoints
-func RegisterDeploymentsEndpoints(api huma.API, basePath string, providerSvc database.ProviderStore, deploymentSvc *deploymentsvc.Service, extensions handlerext.PlatformExtensions) {
+func RegisterDeploymentsEndpoints(api huma.API, basePath string, providerSvc database.ProviderStore, deploymentSvc deploymentsvc.Registry, extensions handlerext.PlatformExtensions) {
 	// List all deployments
 	huma.Register(api, huma.Operation{
 		OperationID: "list-deployments",

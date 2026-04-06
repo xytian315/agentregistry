@@ -46,15 +46,15 @@ type Indexer interface {
 
 // indexerImpl is the concrete implementation of Indexer.
 type indexerImpl struct {
-	servers    *serversvc.Service
-	agents     *agentsvc.Service
+	servers    serversvc.Registry
+	agents     agentsvc.Registry
 	provider   embeddings.Provider
 	dimensions int
 	logger     *slog.Logger
 }
 
 // NewIndexer creates a new embeddings indexer.
-func NewIndexer(servers *serversvc.Service, agents *agentsvc.Service, provider embeddings.Provider, dimensions int) Indexer {
+func NewIndexer(servers serversvc.Registry, agents agentsvc.Registry, provider embeddings.Provider, dimensions int) Indexer {
 	return &indexerImpl{
 		servers:    servers,
 		agents:     agents,

@@ -94,7 +94,7 @@ func (s *registryServiceImpl) inTransaction(ctx context.Context, fn func(context
 	})
 }
 
-func (s *registryServiceImpl) serverService() *serversvc.Service {
+func (s *registryServiceImpl) serverService() serversvc.Registry {
 	stores := s.readStores()
 	return serversvc.New(serversvc.Dependencies{
 		StoreDB:            s.storeDB,
@@ -105,7 +105,7 @@ func (s *registryServiceImpl) serverService() *serversvc.Service {
 	})
 }
 
-func (s *registryServiceImpl) agentService() *agentsvc.Service {
+func (s *registryServiceImpl) agentService() agentsvc.Registry {
 	stores := s.readStores()
 	return agentsvc.New(agentsvc.Dependencies{
 		StoreDB:            s.storeDB,
@@ -118,18 +118,18 @@ func (s *registryServiceImpl) agentService() *agentsvc.Service {
 	})
 }
 
-func (s *registryServiceImpl) skillService() *skillsvc.Service {
+func (s *registryServiceImpl) skillService() skillsvc.Registry {
 	stores := s.readStores()
 	return skillsvc.New(skillsvc.Dependencies{StoreDB: s.storeDB, Skills: stores.skills})
 }
 
-func (s *registryServiceImpl) promptService() *promptsvc.Service {
+func (s *registryServiceImpl) promptService() promptsvc.Registry {
 	stores := s.readStores()
 	return promptsvc.New(promptsvc.Dependencies{StoreDB: s.storeDB, Prompts: stores.prompts})
 }
 
 type deploymentServiceImpl struct {
-	*deploymentsvc.Service
+	deploymentsvc.Registry
 }
 
 func (s *deploymentServiceImpl) resolveDeploymentAdapterByProviderID(ctx context.Context, providerID string) (registrytypes.DeploymentPlatformAdapter, error) {
@@ -138,7 +138,7 @@ func (s *deploymentServiceImpl) resolveDeploymentAdapterByProviderID(ctx context
 
 func (s *registryServiceImpl) deploymentService() *deploymentServiceImpl {
 	stores := s.readStores()
-	return &deploymentServiceImpl{Service: deploymentsvc.New(deploymentsvc.Dependencies{
+	return &deploymentServiceImpl{Registry: deploymentsvc.New(deploymentsvc.Dependencies{
 		StoreDB:            s.storeDB,
 		Providers:          stores.providers,
 		Servers:            stores.servers,

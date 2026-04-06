@@ -156,12 +156,12 @@ func (s *Server) Mux() *http.ServeMux {
 // Note: AuthZ is handled at the DB/service layer, not at the API layer.
 func NewServer(
 	cfg *config.Config,
-	serverSvc *serversvc.Service,
-	agentSvc *agentsvc.Service,
-	skillSvc *skillsvc.Service,
-	promptSvc *promptsvc.Service,
+	serverSvc serversvc.Registry,
+	agentSvc agentsvc.Registry,
+	skillSvc skillsvc.Registry,
+	promptSvc promptsvc.Registry,
 	providerSvc database.ProviderStore,
-	deploymentSvc *deploymentsvc.Service,
+	deploymentSvc deploymentsvc.Registry,
 	metrics *telemetry.Metrics,
 	versionInfo *apitypes.VersionBody,
 	customUIHandler http.Handler,

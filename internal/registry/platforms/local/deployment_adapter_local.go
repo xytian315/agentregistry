@@ -17,8 +17,8 @@ import (
 )
 
 type localDeploymentAdapter struct {
-	serverService    *serversvc.Service
-	agentService     *agentsvc.Service
+	serverService    serversvc.Registry
+	agentService     agentsvc.Registry
 	platformDir      string
 	agentGatewayPort uint16
 }
@@ -70,8 +70,8 @@ func (c *localAgentConfig) cleanup() error {
 }
 
 func NewLocalDeploymentAdapter(
-	serverService *serversvc.Service,
-	agentService *agentsvc.Service,
+	serverService serversvc.Registry,
+	agentService agentsvc.Registry,
 	platformDir string,
 	agentGatewayPort uint16,
 ) *localDeploymentAdapter {

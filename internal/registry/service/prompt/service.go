@@ -20,12 +20,24 @@ type Dependencies struct {
 	Prompts database.PromptStore
 }
 
+type Registry interface {
+	ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error)
+	GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error)
+	GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error)
+	GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*models.PromptResponse, error)
+	CreatePrompt(ctx context.Context, req *models.PromptJSON) (*models.PromptResponse, error)
+	DeletePrompt(ctx context.Context, promptName, version string) error
+	CreatePromptInTransaction(ctx context.Context, prompts database.PromptStore, req *models.PromptJSON) (*models.PromptResponse, error)
+}
+
 type Service struct {
 	storeDB database.Store
 	prompts database.PromptStore
 }
 
-func New(deps Dependencies) *Service {
+var _ Registry = (*Service)(nil)
+
+func New(deps Dependencies) Registry {
 	prompts := deps.Prompts
 	if prompts == nil {
 		prompts = deps.StoreDB

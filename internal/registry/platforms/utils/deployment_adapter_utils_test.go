@@ -288,7 +288,7 @@ func (s *fakePlatformAgentStore) GetAgentEmbeddingMetadata(context.Context, stri
 	return nil, database.ErrNotFound
 }
 
-func newPlatformRuntimeServices(registry *fakePlatformRuntimeRegistry) (*serversvc.Service, *agentsvc.Service) {
+func newPlatformRuntimeServices(registry *fakePlatformRuntimeRegistry) (serversvc.Registry, agentsvc.Registry) {
 	return serversvc.New(serversvc.Dependencies{Servers: &fakePlatformServerStore{registry: registry}}), agentsvc.New(agentsvc.Dependencies{Agents: &fakePlatformAgentStore{registry: registry}})
 }
 

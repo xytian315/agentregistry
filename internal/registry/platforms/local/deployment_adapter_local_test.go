@@ -327,7 +327,7 @@ func (s *fakeLocalPromptStore) DeletePrompt(context.Context, string, string) err
 	return nil
 }
 
-func newLocalRuntimeServices(registry *fakeLocalPlatformRuntimeRegistry) (*serversvc.Service, *agentsvc.Service) {
+func newLocalRuntimeServices(registry *fakeLocalPlatformRuntimeRegistry) (serversvc.Registry, agentsvc.Registry) {
 	return serversvc.New(serversvc.Dependencies{Servers: &fakeLocalServerStore{registry: registry}}), agentsvc.New(agentsvc.Dependencies{Agents: &fakeLocalAgentStore{registry: registry}, Prompts: &fakeLocalPromptStore{registry: registry}})
 }
 

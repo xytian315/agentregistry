@@ -40,6 +40,24 @@ type Dependencies struct {
 	DeploymentAdapters map[string]registrytypes.DeploymentPlatformAdapter
 }
 
+type Registry interface {
+	GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error)
+	DeployServer(ctx context.Context, serverName, version string, env map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	DeployAgent(ctx context.Context, agentName, version string, env map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	RemoveDeploymentByID(ctx context.Context, id string) error
+	CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
+	UndeployDeployment(ctx context.Context, deployment *models.Deployment) error
+	GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error)
+	CancelDeployment(ctx context.Context, deployment *models.Deployment) error
+	ResolveDeploymentAdapter(platform string) (registrytypes.DeploymentPlatformAdapter, error)
+	ResolveDeploymentAdapterByProviderID(ctx context.Context, providerID string) (registrytypes.DeploymentPlatformAdapter, error)
+	CleanupExistingDeployment(ctx context.Context, resourceName, version, resourceType string) error
+	CreateManagedDeploymentRecord(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
+	ApplyDeploymentActionResult(ctx context.Context, deploymentID string, result *models.DeploymentActionResult) error
+	ApplyFailedDeploymentAction(ctx context.Context, deploymentID string, deployErr error, result *models.DeploymentActionResult) error
+}
+
 type Service struct {
 	providers   database.ProviderStore
 	servers     database.ServerStore
@@ -48,7 +66,9 @@ type Service struct {
 	adapters    map[string]registrytypes.DeploymentPlatformAdapter
 }
 
-func New(deps Dependencies) *Service {
+var _ Registry = (*Service)(nil)
+
+func New(deps Dependencies) Registry {
 	providers := deps.Providers
 	if providers == nil {
 		providers = deps.StoreDB

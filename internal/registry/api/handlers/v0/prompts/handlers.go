@@ -44,7 +44,7 @@ type PromptVersionsInput struct {
 }
 
 // RegisterPromptsEndpoints registers all prompt-related endpoints with a custom path prefix.
-func RegisterPromptsEndpoints(api huma.API, pathPrefix string, promptSvc *promptsvc.Service) {
+func RegisterPromptsEndpoints(api huma.API, pathPrefix string, promptSvc promptsvc.Registry) {
 	tags := []string{"prompts"}
 	if strings.Contains(pathPrefix, "admin") {
 		tags = append(tags, "admin")
@@ -229,7 +229,7 @@ type CreatePromptInput struct {
 }
 
 // createPromptHandler is the shared handler logic for creating prompts
-func createPromptHandler(ctx context.Context, input *CreatePromptInput, promptSvc *promptsvc.Service) (*types.Response[promptmodels.PromptResponse], error) {
+func createPromptHandler(ctx context.Context, input *CreatePromptInput, promptSvc promptsvc.Registry) (*types.Response[promptmodels.PromptResponse], error) {
 	createdPrompt, err := promptSvc.CreatePrompt(ctx, &input.Body)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
@@ -248,7 +248,7 @@ func createPromptHandler(ctx context.Context, input *CreatePromptInput, promptSv
 }
 
 // RegisterPromptsCreateEndpoint registers POST /prompts (create or update; immediately visible).
-func RegisterPromptsCreateEndpoint(api huma.API, pathPrefix string, promptSvc *promptsvc.Service) {
+func RegisterPromptsCreateEndpoint(api huma.API, pathPrefix string, promptSvc promptsvc.Registry) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-prompt" + strings.ReplaceAll(pathPrefix, "/", "-"),
 		Method:      http.MethodPost,

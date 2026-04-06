@@ -303,7 +303,7 @@ func (f *fakeProviderDeploymentService) GetAgentEmbeddingMetadata(context.Contex
 	return nil, database.ErrNotFound
 }
 
-func newTestDeploymentService(store *fakeProviderDeploymentService, adapters map[string]registrytypes.DeploymentPlatformAdapter) *deploymentsvc.Service {
+func newTestDeploymentService(store *fakeProviderDeploymentService, adapters map[string]registrytypes.DeploymentPlatformAdapter) deploymentsvc.Registry {
 	return deploymentsvc.New(deploymentsvc.Dependencies{
 		Providers:          store,
 		Servers:            store,

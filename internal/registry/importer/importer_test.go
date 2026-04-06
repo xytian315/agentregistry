@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestServerService(storeDB registrydb.Store, cfg *config.Config) *serversvc.Service {
+func newTestServerService(storeDB registrydb.Store, cfg *config.Config) serversvc.Registry {
 	return serversvc.New(serversvc.Dependencies{StoreDB: storeDB, Config: cfg})
 }
 

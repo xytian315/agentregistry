@@ -89,7 +89,7 @@ type ServerReadmeResponse struct {
 }
 
 // RegisterServersEndpoints registers all server-related endpoints with a custom path prefix.
-func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc *serversvc.Service, deploymentSvc deploymentmeta.Lister) {
+func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc serversvc.Registry, deploymentSvc deploymentmeta.Lister) {
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-server-version" + strings.ReplaceAll(pathPrefix, "/", "-"),
 		Method:      http.MethodDelete,
@@ -445,7 +445,7 @@ type CreateServerInput struct {
 }
 
 // createServerHandler is the shared handler logic for creating servers
-func createServerHandler(ctx context.Context, input *CreateServerInput, serverSvc *serversvc.Service, deploymentSvc deploymentmeta.Lister) (*types.Response[models.ServerResponse], error) {
+func createServerHandler(ctx context.Context, input *CreateServerInput, serverSvc serversvc.Registry, deploymentSvc deploymentmeta.Lister) (*types.Response[models.ServerResponse], error) {
 	createdServer, err := serverSvc.CreateServer(ctx, &input.Body)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
@@ -470,7 +470,7 @@ func createServerHandler(ctx context.Context, input *CreateServerInput, serverSv
 }
 
 // RegisterServersCreateEndpoint registers POST /servers (create or update; immediately visible).
-func RegisterServersCreateEndpoint(api huma.API, pathPrefix string, serverSvc *serversvc.Service, deploymentSvc deploymentmeta.Lister) {
+func RegisterServersCreateEndpoint(api huma.API, pathPrefix string, serverSvc serversvc.Registry, deploymentSvc deploymentmeta.Lister) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-server" + strings.ReplaceAll(pathPrefix, "/", "-"),
 		Method:      http.MethodPost,

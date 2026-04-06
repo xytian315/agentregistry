@@ -52,7 +52,7 @@ func ValidateDeploymentRequest(deployment *models.Deployment, allowExisting bool
 
 func BuildPlatformMCPServer(
 	ctx context.Context,
-	serverService *serversvc.Service,
+	serverService serversvc.Registry,
 	deployment *models.Deployment,
 	namespace string,
 ) (*platformtypes.MCPServer, error) {
@@ -80,8 +80,8 @@ func BuildPlatformMCPServer(
 
 func ResolveAgent(
 	ctx context.Context,
-	serverService *serversvc.Service,
-	agentService *agentsvc.Service,
+	serverService serversvc.Registry,
+	agentService agentsvc.Registry,
 	deployment *models.Deployment,
 	namespace string,
 ) (*platformtypes.ResolvedAgentConfig, error) {
@@ -137,7 +137,7 @@ func ResolveAgent(
 
 func resolveAgentManifestPlatformMCPServers(
 	ctx context.Context,
-	serverService *serversvc.Service,
+	serverService serversvc.Registry,
 	deploymentID string,
 	manifest *models.AgentManifest,
 	namespace string,
