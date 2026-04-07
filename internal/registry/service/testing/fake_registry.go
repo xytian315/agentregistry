@@ -409,7 +409,7 @@ func (f *FakeRegistry) DeleteProvider(ctx context.Context, providerID string) er
 	return database.ErrNotFound
 }
 
-func (f *FakeRegistry) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+func (f *FakeRegistry) BrowseDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 	if f.GetDeploymentsFn != nil {
 		return f.GetDeploymentsFn(ctx, filter)
 	}
@@ -418,7 +418,7 @@ func (f *FakeRegistry) GetDeployments(ctx context.Context, filter *models.Deploy
 	return f.Deployments, nil
 }
 
-func (f *FakeRegistry) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+func (f *FakeRegistry) LookupDeployment(ctx context.Context, id string) (*models.Deployment, error) {
 	if f.GetDeploymentByIDFn != nil {
 		return f.GetDeploymentByIDFn(ctx, id)
 	}
@@ -439,14 +439,14 @@ func (f *FakeRegistry) DeployAgent(ctx context.Context, agentName, version strin
 	return nil, database.ErrNotFound
 }
 
-func (f *FakeRegistry) RemoveDeploymentByID(ctx context.Context, id string) error {
+func (f *FakeRegistry) ForgetDeployment(ctx context.Context, id string) error {
 	if f.RemoveDeploymentByIDFn != nil {
 		return f.RemoveDeploymentByIDFn(ctx, id)
 	}
 	return database.ErrNotFound
 }
 
-func (f *FakeRegistry) CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
+func (f *FakeRegistry) LaunchDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
 	if f.CreateDeploymentFn != nil {
 		return f.CreateDeploymentFn(ctx, req)
 	}
@@ -483,7 +483,7 @@ func (f *FakeRegistry) UndeployDeployment(ctx context.Context, deployment *model
 	return database.ErrNotFound
 }
 
-func (f *FakeRegistry) GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
+func (f *FakeRegistry) DeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
 	if f.GetDeploymentLogsFn != nil {
 		return f.GetDeploymentLogsFn(ctx, deployment)
 	}

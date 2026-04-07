@@ -358,12 +358,12 @@ func (s *registryServiceImpl) DeleteProvider(ctx context.Context, providerID str
 	return s.readStores().providers.DeleteProvider(ctx, providerID)
 }
 
-func (s *registryServiceImpl) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
-	return s.deploymentService().GetDeployments(ctx, filter)
+func (s *registryServiceImpl) BrowseDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+	return s.deploymentService().BrowseDeployments(ctx, filter)
 }
 
-func (s *registryServiceImpl) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
-	return s.deploymentService().GetDeploymentByID(ctx, id)
+func (s *registryServiceImpl) LookupDeployment(ctx context.Context, id string) (*models.Deployment, error) {
+	return s.deploymentService().LookupDeployment(ctx, id)
 }
 
 func (s *registryServiceImpl) DeployServer(ctx context.Context, serverName, version string, env map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
@@ -374,20 +374,20 @@ func (s *registryServiceImpl) DeployAgent(ctx context.Context, agentName, versio
 	return s.deploymentService().DeployAgent(ctx, agentName, version, env, preferRemote, providerID)
 }
 
-func (s *registryServiceImpl) RemoveDeploymentByID(ctx context.Context, id string) error {
-	return s.deploymentService().RemoveDeploymentByID(ctx, id)
+func (s *registryServiceImpl) ForgetDeployment(ctx context.Context, id string) error {
+	return s.deploymentService().ForgetDeployment(ctx, id)
 }
 
-func (s *registryServiceImpl) CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
-	return s.deploymentService().CreateDeployment(ctx, req)
+func (s *registryServiceImpl) LaunchDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
+	return s.deploymentService().LaunchDeployment(ctx, req)
 }
 
 func (s *registryServiceImpl) UndeployDeployment(ctx context.Context, deployment *models.Deployment) error {
 	return s.deploymentService().UndeployDeployment(ctx, deployment)
 }
 
-func (s *registryServiceImpl) GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
-	return s.deploymentService().GetDeploymentLogs(ctx, deployment)
+func (s *registryServiceImpl) DeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
+	return s.deploymentService().DeploymentLogs(ctx, deployment)
 }
 
 func (s *registryServiceImpl) CancelDeployment(ctx context.Context, deployment *models.Deployment) error {

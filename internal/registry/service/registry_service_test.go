@@ -1131,9 +1131,9 @@ func TestDeployAgent_MissingProviderIDReturnsInvalidInput(t *testing.T) {
 	require.ErrorIs(t, err, database.ErrInvalidInput)
 }
 
-func TestCreateDeployment_MissingProviderIDReturnsInvalidInput(t *testing.T) {
+func TestLaunchDeployment_MissingProviderIDReturnsInvalidInput(t *testing.T) {
 	svc := &registryServiceImpl{}
-	_, err := svc.CreateDeployment(context.Background(), &models.Deployment{
+	_, err := svc.LaunchDeployment(context.Background(), &models.Deployment{
 		ServerName:   "com.example/weather",
 		Version:      "1.0.0",
 		ResourceType: "mcp",
@@ -1718,7 +1718,7 @@ func TestCreateDeployment_RejectsUnsupportedResourceTypeForProvider(t *testing.T
 		},
 	}
 
-	_, err := svc.CreateDeployment(context.Background(), &models.Deployment{
+	_, err := svc.LaunchDeployment(context.Background(), &models.Deployment{
 		ServerName:   "io.test/agent",
 		Version:      "1.0.0",
 		ProviderID:   "local",
@@ -1816,7 +1816,7 @@ func TestCreateDeployment_UsesAdapterResolvedFromProviderPlatform(t *testing.T) 
 				},
 			}
 
-			got, err := svc.CreateDeployment(context.Background(), &models.Deployment{
+			got, err := svc.LaunchDeployment(context.Background(), &models.Deployment{
 				ServerName:   "com.example/runtime",
 				Version:      "latest",
 				ResourceType: tt.resourceType,
@@ -1876,7 +1876,7 @@ func TestGetDeployments_AppendsDiscoveredDeploymentsFromAdapters(t *testing.T) {
 		},
 	}
 
-	got, err := svc.GetDeployments(context.Background(), nil)
+	got, err := svc.BrowseDeployments(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	assert.True(t, discoverCalled)
@@ -1926,7 +1926,7 @@ func TestGetDeployments_DedupesDiscoveredDeploymentsByIdentity(t *testing.T) {
 		},
 	}
 
-	got, err := svc.GetDeployments(context.Background(), nil)
+	got, err := svc.BrowseDeployments(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "discovered", got[0].Origin)
@@ -1983,7 +1983,7 @@ func TestGetDeployments_KeepsDiscoveredDeploymentsDistinctAcrossNamespaces(t *te
 		},
 	}
 
-	got, err := svc.GetDeployments(context.Background(), nil)
+	got, err := svc.BrowseDeployments(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	assert.NotEqual(t, got[0].ID, got[1].ID)
@@ -2030,7 +2030,7 @@ func TestGetDeployments_ManagedOriginSkipsDiscovery(t *testing.T) {
 	}
 
 	filter := &models.DeploymentFilter{Origin: &originManaged}
-	got, err := svc.GetDeployments(context.Background(), filter)
+	got, err := svc.BrowseDeployments(context.Background(), filter)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.False(t, discoverCalled)
@@ -2077,7 +2077,7 @@ func TestGetDeploymentByID_FallsBackToDiscoveredDeployments(t *testing.T) {
 		},
 	}
 
-	got, err := svc.GetDeploymentByID(context.Background(), discoveredID)
+	got, err := svc.LookupDeployment(context.Background(), discoveredID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, discoveredID, got.ID)

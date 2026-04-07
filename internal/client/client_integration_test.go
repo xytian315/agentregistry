@@ -319,13 +319,13 @@ func (f *fakeClientRegistry) DeleteProvider(ctx context.Context, providerID stri
 	}
 	return database.ErrNotFound
 }
-func (f *fakeClientRegistry) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+func (f *fakeClientRegistry) BrowseDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 	if f.GetDeploymentsFn != nil {
 		return f.GetDeploymentsFn(ctx, filter)
 	}
 	return nil, nil
 }
-func (f *fakeClientRegistry) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+func (f *fakeClientRegistry) LookupDeployment(ctx context.Context, id string) (*models.Deployment, error) {
 	if f.GetDeploymentByIDFn != nil {
 		return f.GetDeploymentByIDFn(ctx, id)
 	}
@@ -343,13 +343,13 @@ func (f *fakeClientRegistry) DeployAgent(ctx context.Context, agentName, version
 	}
 	return nil, database.ErrNotFound
 }
-func (f *fakeClientRegistry) RemoveDeploymentByID(ctx context.Context, id string) error {
+func (f *fakeClientRegistry) ForgetDeployment(ctx context.Context, id string) error {
 	if f.RemoveDeploymentByIDFn != nil {
 		return f.RemoveDeploymentByIDFn(ctx, id)
 	}
 	return database.ErrNotFound
 }
-func (f *fakeClientRegistry) CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
+func (f *fakeClientRegistry) LaunchDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
 	if f.CreateDeploymentFn != nil {
 		return f.CreateDeploymentFn(ctx, req)
 	}
@@ -361,7 +361,7 @@ func (f *fakeClientRegistry) UndeployDeployment(ctx context.Context, deployment 
 	}
 	return database.ErrNotFound
 }
-func (f *fakeClientRegistry) GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
+func (f *fakeClientRegistry) DeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
 	if f.GetDeploymentLogsFn != nil {
 		return f.GetDeploymentLogsFn(ctx, deployment)
 	}

@@ -113,7 +113,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, deploymentSvc d
 			filter.ResourceName = &n
 		}
 
-		deployments, err := deploymentSvc.GetDeployments(ctx, filter)
+		deployments, err := deploymentSvc.BrowseDeployments(ctx, filter)
 		if err != nil {
 			if errors.Is(err, auth.ErrUnauthenticated) {
 				return nil, huma.Error401Unauthorized("Authentication required")
@@ -142,7 +142,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, deploymentSvc d
 		Description: "Retrieve details for a specific deployment by ID",
 		Tags:        []string{"deployments"},
 	}, func(ctx context.Context, input *DeploymentByIDInput) (*DeploymentResponse, error) {
-		deployment, err := deploymentSvc.GetDeploymentByID(ctx, input.ID)
+		deployment, err := deploymentSvc.LookupDeployment(ctx, input.ID)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Deployment not found")
@@ -197,7 +197,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, deploymentSvc d
 			PreferRemote:   input.Body.PreferRemote,
 		}
 
-		deployment, err := deploymentSvc.CreateDeployment(ctx, deploymentReq)
+		deployment, err := deploymentSvc.LaunchDeployment(ctx, deploymentReq)
 		if err != nil {
 			return nil, createDeploymentHTTPError(err)
 		}
@@ -214,7 +214,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, deploymentSvc d
 		Description: "Remove a deployment by ID",
 		Tags:        []string{"deployments"},
 	}, func(ctx context.Context, input *DeploymentByIDInput) (*struct{}, error) {
-		deployment, err := deploymentSvc.GetDeploymentByID(ctx, input.ID)
+		deployment, err := deploymentSvc.LookupDeployment(ctx, input.ID)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Deployment not found")
@@ -250,7 +250,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, deploymentSvc d
 		Description: "Get logs for async deployments when supported by the provider",
 		Tags:        []string{"deployments"},
 	}, func(ctx context.Context, input *DeploymentByIDInput) (*DeploymentLogsResponse, error) {
-		deployment, err := deploymentSvc.GetDeploymentByID(ctx, input.ID)
+		deployment, err := deploymentSvc.LookupDeployment(ctx, input.ID)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Deployment not found")
@@ -264,7 +264,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, deploymentSvc d
 			return nil, huma.Error500InternalServerError("Failed to retrieve deployment", err)
 		}
 
-		logs, err := deploymentSvc.GetDeploymentLogs(ctx, deployment)
+		logs, err := deploymentSvc.DeploymentLogs(ctx, deployment)
 		if err != nil {
 			if errors.Is(err, database.ErrInvalidInput) {
 				return nil, huma.Error400BadRequest("Invalid deployment logs request")
@@ -293,7 +293,7 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, deploymentSvc d
 		Description: "Cancel a deployment when supported by the provider",
 		Tags:        []string{"deployments"},
 	}, func(ctx context.Context, input *DeploymentByIDInput) (*struct{}, error) {
-		deployment, err := deploymentSvc.GetDeploymentByID(ctx, input.ID)
+		deployment, err := deploymentSvc.LookupDeployment(ctx, input.ID)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Deployment not found")

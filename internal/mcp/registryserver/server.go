@@ -381,7 +381,7 @@ func addDeploymentTools(server *mcp.Server, registry deploymentsvc.Registry) {
 		Name:        "list_deployments",
 		Description: "List deployments (servers or agents)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args listDeploymentsArgs) (*mcp.CallToolResult, deploymentsResponse, error) {
-		deployments, err := registry.GetDeployments(ctx, nil)
+		deployments, err := registry.BrowseDeployments(ctx, nil)
 		if err != nil {
 			return nil, deploymentsResponse{}, err
 		}
@@ -410,7 +410,7 @@ func addDeploymentTools(server *mcp.Server, registry deploymentsvc.Registry) {
 		if args.ID == "" {
 			return nil, models.Deployment{}, errors.New("id is required")
 		}
-		deployment, err := registry.GetDeploymentByID(ctx, args.ID)
+		deployment, err := registry.LookupDeployment(ctx, args.ID)
 		if err != nil {
 			return nil, models.Deployment{}, err
 		}
@@ -465,7 +465,7 @@ func addDeploymentTools(server *mcp.Server, registry deploymentsvc.Registry) {
 		if args.ID == "" {
 			return nil, nil, errors.New("id is required")
 		}
-		deployment, err := registry.GetDeploymentByID(ctx, args.ID)
+		deployment, err := registry.LookupDeployment(ctx, args.ID)
 		if err != nil {
 			return nil, nil, err
 		}

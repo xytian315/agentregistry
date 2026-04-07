@@ -212,14 +212,14 @@ func (f *fakeMCPRegistry) RemoveSkill(ctx context.Context, skillName, version st
 	return errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+func (f *fakeMCPRegistry) BrowseDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 	if f.getDeploymentsFn != nil {
 		return f.getDeploymentsFn(ctx, filter)
 	}
 	return f.deployments, nil
 }
 
-func (f *fakeMCPRegistry) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+func (f *fakeMCPRegistry) LookupDeployment(ctx context.Context, id string) (*models.Deployment, error) {
 	if f.getDeploymentByIDFn != nil {
 		return f.getDeploymentByIDFn(ctx, id)
 	}
@@ -240,11 +240,11 @@ func (f *fakeMCPRegistry) DeployAgent(ctx context.Context, agentName, version st
 	return nil, errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) RemoveDeploymentByID(ctx context.Context, id string) error {
+func (f *fakeMCPRegistry) ForgetDeployment(ctx context.Context, id string) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
+func (f *fakeMCPRegistry) LaunchDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -255,7 +255,7 @@ func (f *fakeMCPRegistry) UndeployDeployment(ctx context.Context, deployment *mo
 	return errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
+func (f *fakeMCPRegistry) DeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -322,7 +322,7 @@ func (h *fakeMCPDeploymentHarness) CreateManagedDeploymentRecord(ctx context.Con
 	return &stored, nil
 }
 
-func (h *fakeMCPDeploymentHarness) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
+func (h *fakeMCPDeploymentHarness) BrowseDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 	if h.registry.getDeploymentsFn != nil {
 		return h.registry.getDeploymentsFn(ctx, filter)
 	}
@@ -336,7 +336,7 @@ func (h *fakeMCPDeploymentHarness) GetDeployments(ctx context.Context, filter *m
 	return h.registry.deployments, nil
 }
 
-func (h *fakeMCPDeploymentHarness) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
+func (h *fakeMCPDeploymentHarness) LookupDeployment(ctx context.Context, id string) (*models.Deployment, error) {
 	if h.registry.getDeploymentByIDFn != nil {
 		return h.registry.getDeploymentByIDFn(ctx, id)
 	}
@@ -367,12 +367,12 @@ func (h *fakeMCPDeploymentHarness) UpdateDeploymentState(_ context.Context, id s
 }
 
 
-func (h *fakeMCPDeploymentHarness) RemoveDeploymentByID(_ context.Context, id string) error {
+func (h *fakeMCPDeploymentHarness) ForgetDeployment(_ context.Context, id string) error {
 	delete(h.deployments, id)
 	return nil
 }
 
-func (h *fakeMCPDeploymentHarness) CreateDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
+func (h *fakeMCPDeploymentHarness) LaunchDeployment(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
 	created, err := h.CreateManagedDeploymentRecord(ctx, req)
 	if err != nil {
 		return nil, err
@@ -387,11 +387,11 @@ func (h *fakeMCPDeploymentHarness) CreateDeployment(ctx context.Context, req *mo
 	if err := h.ApplyDeploymentActionResult(ctx, created.ID, result); err != nil {
 		return nil, err
 	}
-	return h.GetDeploymentByID(ctx, created.ID)
+	return h.LookupDeployment(ctx, created.ID)
 	}
 
 func (h *fakeMCPDeploymentHarness) DeployServer(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
-	return h.CreateDeployment(ctx, &models.Deployment{
+	return h.LaunchDeployment(ctx, &models.Deployment{
 		ServerName:   serverName,
 		Version:      version,
 		Env:          config,
@@ -403,7 +403,7 @@ func (h *fakeMCPDeploymentHarness) DeployServer(ctx context.Context, serverName,
 }
 
 func (h *fakeMCPDeploymentHarness) DeployAgent(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error) {
-	return h.CreateDeployment(ctx, &models.Deployment{
+	return h.LaunchDeployment(ctx, &models.Deployment{
 		ServerName:   agentName,
 		Version:      version,
 		Env:          config,
@@ -520,7 +520,7 @@ func (h *fakeMCPDeploymentHarness) GetLogs(context.Context, *models.Deployment) 
 	return nil, errors.New("not implemented")
 }
 
-func (h *fakeMCPDeploymentHarness) GetDeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
+func (h *fakeMCPDeploymentHarness) DeploymentLogs(ctx context.Context, deployment *models.Deployment) ([]string, error) {
 	return h.GetLogs(ctx, deployment)
 }
 
