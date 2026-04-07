@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/agentregistry-dev/agentregistry/internal/registry/service/internal/deployutil"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
@@ -34,7 +35,8 @@ func IsUnsupportedDeploymentPlatformError(err error) bool {
 type Dependencies struct {
 	StoreDB            database.Store
 	Deployments        database.DeploymentStore
-	Providers          database.ProviderStore
+	Providers          providersvc.Registry
+	ProviderPlatforms  map[string]registrytypes.ProviderPlatformAdapter
 	Servers            database.ServerStore
 	Agents             database.AgentStore
 	DeploymentAdapters map[string]registrytypes.DeploymentPlatformAdapter
@@ -60,7 +62,7 @@ type Registry interface {
 
 type Service struct {
 	deployments database.DeploymentStore
-	providers   database.ProviderStore
+	providers   providersvc.Registry
 	servers     database.ServerStore
 	agents      database.AgentStore
 	adapters    map[string]registrytypes.DeploymentPlatformAdapter
@@ -73,7 +75,10 @@ func New(deps Dependencies) Registry {
 		deps.Deployments = deps.StoreDB.Deployments()
 	}
 	if deps.Providers == nil && deps.StoreDB != nil {
-		deps.Providers = deps.StoreDB.Providers()
+		deps.Providers = providersvc.New(providersvc.Dependencies{
+			StoreDB:           deps.StoreDB,
+			ProviderPlatforms: deps.ProviderPlatforms,
+		})
 	}
 	if deps.Servers == nil && deps.StoreDB != nil {
 		deps.Servers = deps.StoreDB.Servers()
@@ -471,6 +476,10 @@ func (s *Service) appendDiscoveredDeployments(ctx context.Context, deployments [
 	if filter != nil {
 		platformFilter = filter.Platform
 	}
+	platform := ""
+	if platformFilter != nil {
+		platform = *platformFilter
+	}
 
 	seenDeploymentIDs := make(map[string]struct{}, len(deployments))
 	for _, dep := range deployments {
@@ -482,7 +491,7 @@ func (s *Service) appendDiscoveredDeployments(ctx context.Context, deployments [
 		}
 	}
 
-	providers, err := s.providers.ListProviders(ctx, platformFilter)
+	providers, err := s.providers.ListProviders(ctx, platform)
 	if err != nil {
 		log.Printf("Warning: Failed to list providers for discovery: %v", err)
 		return deployments

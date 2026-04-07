@@ -30,6 +30,14 @@ type splitDomainViewMockDB struct {
 	getProviderByIDFn func(ctx context.Context, providerID string) (*models.Provider, error)
 }
 
+func (m *splitDomainViewMockDB) Servers() database.ServerStore {
+	return m
+}
+
+func (m *splitDomainViewMockDB) Providers() database.ProviderStore {
+	return m
+}
+
 func newRegistryTestServerService(storeDB database.Store, cfg *config.Config) serversvc.Registry {
 	return serversvc.New(serversvc.Dependencies{StoreDB: storeDB, Config: cfg})
 }
@@ -1158,7 +1166,7 @@ type deployCreateMockDB struct {
 // deploymentMockDB is a minimal mock for database.Store that only implements
 // the methods needed for testing deployment cleanup logic. All other methods panic.
 type deploymentMockDB struct {
-	database.Store      // embed interface so unimplemented methods panic
+	database.Store         // embed interface so unimplemented methods panic
 	getDeploymentByIDFn    func(ctx context.Context, id string) (*models.Deployment, error)
 	getDeploymentsFn       func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
 	listProvidersFn        func(ctx context.Context, platform *string) ([]*models.Provider, error)

@@ -8,7 +8,6 @@ import (
 	v0agents "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/agents"
 	v0deployments "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/deployments"
 	v0embeddings "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/embeddings"
-	v0extensions "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/extensions"
 	v0health "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/health"
 	v0ping "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/ping"
 	v0prompts "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/prompts"
@@ -19,9 +18,9 @@ import (
 	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	promptsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/prompt"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
-	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
 	"github.com/danielgtaylor/huma/v2"
 
@@ -54,7 +53,7 @@ func RegisterRoutes(
 	agentSvc agentsvc.Registry,
 	skillSvc skillsvc.Registry,
 	promptSvc promptsvc.Registry,
-	providerSvc database.ProviderStore,
+	providerSvc providersvc.Registry,
 	deploymentSvc deploymentsvc.Registry,
 	metrics *telemetry.Metrics,
 	versionInfo *apitypes.VersionBody,
@@ -69,13 +68,8 @@ func RegisterRoutes(
 	v0servers.RegisterServersCreateEndpoint(api, pathPrefix, serverSvc, deploymentSvc)
 	v0servers.RegisterEditEndpoints(api, pathPrefix, serverSvc, deploymentSvc)
 	v0auth.RegisterAuthEndpoints(api, pathPrefix, cfg)
-	platformExt := v0extensions.PlatformExtensions{}
-	if opts != nil {
-		platformExt.ProviderPlatforms = opts.ProviderPlatforms
-		platformExt.DeploymentPlatforms = opts.DeploymentPlatforms
-	}
-	v0providers.RegisterProvidersEndpoints(api, pathPrefix, providerSvc, platformExt)
-	v0deployments.RegisterDeploymentsEndpoints(api, pathPrefix, providerSvc, deploymentSvc, platformExt)
+	v0providers.RegisterProvidersEndpoints(api, pathPrefix, providerSvc)
+	v0deployments.RegisterDeploymentsEndpoints(api, pathPrefix, deploymentSvc)
 	v0agents.RegisterAgentsEndpoints(api, pathPrefix, agentSvc, deploymentSvc)
 	v0agents.RegisterAgentsCreateEndpoint(api, pathPrefix, agentSvc, deploymentSvc)
 	v0skills.RegisterSkillsEndpoints(api, pathPrefix, skillSvc)

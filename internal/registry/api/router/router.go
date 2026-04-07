@@ -12,11 +12,11 @@ import (
 	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	promptsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/prompt"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
 	"github.com/agentregistry-dev/agentregistry/pkg/logging"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
-	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"go.opentelemetry.io/otel/attribute"
@@ -143,7 +143,7 @@ func NewHumaAPI(
 	agentSvc agentsvc.Registry,
 	skillSvc skillsvc.Registry,
 	promptSvc promptsvc.Registry,
-	providerSvc database.ProviderStore,
+	providerSvc providersvc.Registry,
 	deploymentSvc deploymentsvc.Registry,
 	mux *http.ServeMux,
 	metrics *telemetry.Metrics,

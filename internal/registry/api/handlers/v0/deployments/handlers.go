@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/agentregistry-dev/agentregistry/internal/registry/api/apitypes"
-	handlerext "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/extensions"
-	v0providers "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/providers"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/platforms/utils"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
@@ -79,7 +77,7 @@ func removeDeploymentHTTPError(err error) error {
 }
 
 // RegisterDeploymentsEndpoints registers all deployment-related endpoints
-func RegisterDeploymentsEndpoints(api huma.API, basePath string, providerSvc database.ProviderStore, deploymentSvc deploymentsvc.Registry, extensions handlerext.PlatformExtensions) {
+func RegisterDeploymentsEndpoints(api huma.API, basePath string, deploymentSvc deploymentsvc.Registry) {
 	// List all deployments
 	huma.Register(api, huma.Operation{
 		OperationID: "list-deployments",
@@ -186,10 +184,6 @@ func RegisterDeploymentsEndpoints(api huma.API, basePath string, providerSvc dat
 		providerID := strings.TrimSpace(input.Body.ProviderID)
 		if providerID == "" {
 			return nil, huma.Error400BadRequest("providerId is required")
-		}
-		_, err := v0providers.ResolveProviderByID(ctx, providerSvc, extensions, providerID, "")
-		if err != nil {
-			return nil, err
 		}
 
 		deploymentReq := &models.Deployment{

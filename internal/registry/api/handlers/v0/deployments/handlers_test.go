@@ -11,8 +11,6 @@ import (
 	"testing"
 
 	v0deployments "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/deployments"
-	v0extensions "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/extensions"
-	v0providers "github.com/agentregistry-dev/agentregistry/internal/registry/api/handlers/v0/providers"
 	platformutils "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/utils"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
@@ -420,10 +418,7 @@ func newTestDeploymentService(store *fakeProviderDeploymentService, adapters map
 
 func registerDeploymentTestEndpoints(mux *http.ServeMux, store *fakeProviderDeploymentService, adapters map[string]registrytypes.DeploymentPlatformAdapter) {
 	api := humago.New(mux, huma.DefaultConfig("Test API", "1.0.0"))
-	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", store, newTestDeploymentService(store, adapters), v0extensions.PlatformExtensions{
-		ProviderPlatforms:   v0providers.DefaultProviderPlatformAdapters(store),
-		DeploymentPlatforms: adapters,
-	})
+	v0deployments.RegisterDeploymentsEndpoints(api, "/v0", newTestDeploymentService(store, adapters))
 }
 
 func (f *fakeDeploymentAdapter) Platform() string { return "local" }

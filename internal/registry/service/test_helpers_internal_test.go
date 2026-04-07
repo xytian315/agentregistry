@@ -11,6 +11,7 @@ import (
 	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	promptsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/prompt"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
@@ -30,13 +31,23 @@ type storeBundle struct {
 
 func bundleFromScope(scope database.Scope) storeBundle {
 	return storeBundle{
-		servers:     scope.Servers(),
-		agents:      scope.Agents(),
-		skills:      scope.Skills(),
-		prompts:     scope.Prompts(),
-		providers:   scope.Providers(),
-		deployments: scope.Deployments(),
+		servers:     safeScopeStore(scope.Servers),
+		agents:      safeScopeStore(scope.Agents),
+		skills:      safeScopeStore(scope.Skills),
+		prompts:     safeScopeStore(scope.Prompts),
+		providers:   safeScopeStore(scope.Providers),
+		deployments: safeScopeStore(scope.Deployments),
 	}
+}
+
+func safeScopeStore[T any](read func() T) (value T) {
+	defer func() {
+		if recover() != nil {
+			var zero T
+			value = zero
+		}
+	}()
+	return read()
 }
 
 type registryServiceImpl struct {
@@ -140,7 +151,7 @@ func (s *registryServiceImpl) deploymentService() *deploymentServiceImpl {
 	stores := s.readStores()
 	return &deploymentServiceImpl{Registry: deploymentsvc.New(deploymentsvc.Dependencies{
 		Deployments:        stores.deployments,
-		Providers:          stores.providers,
+		Providers:          providersvc.New(providersvc.Dependencies{Providers: stores.providers}),
 		Servers:            stores.servers,
 		Agents:             stores.agents,
 		DeploymentAdapters: s.deploymentAdapters,

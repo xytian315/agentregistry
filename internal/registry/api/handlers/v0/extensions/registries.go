@@ -2,8 +2,7 @@ package extensions
 
 import registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
 
-// PlatformExtensions holds optional deployment adapter registries.
-// Provider CRUD is now fully service/DB-backed.
+// PlatformExtensions holds optional platform adapter registries.
 type PlatformExtensions struct {
 	ProviderPlatforms   map[string]registrytypes.ProviderPlatformAdapter
 	DeploymentPlatforms map[string]registrytypes.DeploymentPlatformAdapter

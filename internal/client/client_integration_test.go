@@ -16,6 +16,7 @@ import (
 	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	promptsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/prompt"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	skillsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/skill"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/telemetry"
@@ -1375,6 +1376,10 @@ func newClientWithInProcessServer(t *testing.T, fake *fakeClientRegistry) (*Clie
 
 	store := newFakeClientStore(fake)
 	deploymentAdapter := &fakeClientDeploymentAdapter{registry: fake}
+	providerRegistry := providersvc.New(providersvc.Dependencies{
+		StoreDB:           store,
+		ProviderPlatforms: routeOpts.ProviderPlatforms,
+	})
 
 	router.NewHumaAPI(
 		cfg,
@@ -1382,9 +1387,10 @@ func newClientWithInProcessServer(t *testing.T, fake *fakeClientRegistry) (*Clie
 		agentsvc.New(agentsvc.Dependencies{StoreDB: store, Config: cfg}),
 		skillsvc.New(skillsvc.Dependencies{StoreDB: store}),
 		promptsvc.New(promptsvc.Dependencies{StoreDB: store}),
-		store,
+		providerRegistry,
 		deploymentsvc.New(deploymentsvc.Dependencies{
 			StoreDB:            store,
+			Providers:          providerRegistry,
 			DeploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{"local": deploymentAdapter},
 		}),
 		mux,
