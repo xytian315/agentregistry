@@ -46,7 +46,7 @@ type Registry interface {
 	ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error)
 }
 
-type Service struct {
+type registry struct {
 	agents             database.AgentStore
 	skills             database.SkillStore
 	prompts            database.PromptStore
@@ -56,7 +56,7 @@ type Service struct {
 	logger             *slog.Logger
 }
 
-var _ Registry = (*Service)(nil)
+var _ Registry = (*registry)(nil)
 
 func New(deps Dependencies) Registry {
 	if deps.Agents == nil && deps.StoreDB != nil {
@@ -77,7 +77,7 @@ func New(deps Dependencies) Registry {
 		logger = slog.Default().With("component", "registry.agent")
 	}
 
-	return &Service{
+	return &registry{
 		agents:             deps.Agents,
 		skills:             deps.Skills,
 		prompts:            deps.Prompts,
@@ -88,7 +88,7 @@ func New(deps Dependencies) Registry {
 	}
 }
 
-func (s *Service) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+func (s *registry) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
 	if limit <= 0 {
 		limit = 30
 	}
@@ -100,41 +100,41 @@ func (s *Service) ListAgents(ctx context.Context, filter *database.AgentFilter, 
 	return s.agents.ListAgents(ctx, filter, cursor, limit)
 }
 
-func (s *Service) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+func (s *registry) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
 	return s.agents.GetAgentByName(ctx, agentName)
 }
 
-func (s *Service) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+func (s *registry) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
 	return s.agents.GetAgentByNameAndVersion(ctx, agentName, version)
 }
 
-func (s *Service) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+func (s *registry) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
 	return s.agents.GetAllVersionsByAgentName(ctx, agentName)
 }
 
-func (s *Service) CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+func (s *registry) CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
 	return txutil.RunT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*models.AgentResponse, error) {
 		return s.createAgentInTransaction(txCtx, scope.Agents(), req)
 	})
 }
 
-func (s *Service) DeleteAgent(ctx context.Context, agentName, version string) error {
+func (s *registry) DeleteAgent(ctx context.Context, agentName, version string) error {
 	return txutil.Run(ctx, s.tx, func(txCtx context.Context, scope database.Scope) error {
 		return scope.Agents().DeleteAgent(txCtx, agentName, version)
 	})
 }
 
-func (s *Service) UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
+func (s *registry) UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
 	return txutil.Run(ctx, s.tx, func(txCtx context.Context, scope database.Scope) error {
 		return scope.Agents().SetAgentEmbedding(txCtx, agentName, version, embedding)
 	})
 }
 
-func (s *Service) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
+func (s *registry) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
 	return s.agents.GetAgentEmbeddingMetadata(ctx, agentName, version)
 }
 
-func (s *Service) ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error) {
+func (s *registry) ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error) {
 	if manifest == nil || len(manifest.Skills) == 0 {
 		return nil, nil
 	}
@@ -150,7 +150,7 @@ func (s *Service) ResolveAgentManifestSkills(ctx context.Context, manifest *mode
 	return resolved, nil
 }
 
-func (s *Service) ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error) {
+func (s *registry) ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error) {
 	if manifest == nil || len(manifest.Prompts) == 0 {
 		return nil, nil
 	}
@@ -188,7 +188,7 @@ func (s *Service) ResolveAgentManifestPrompts(ctx context.Context, manifest *mod
 	return resolved, nil
 }
 
-func (s *Service) createAgentInTransaction(ctx context.Context, agents database.AgentStore, req *models.AgentJSON) (*models.AgentResponse, error) {
+func (s *registry) createAgentInTransaction(ctx context.Context, agents database.AgentStore, req *models.AgentJSON) (*models.AgentResponse, error) {
 	if req == nil || req.Name == "" || req.Version == "" {
 		return nil, fmt.Errorf("invalid agent payload: name and version are required")
 	}
@@ -280,7 +280,7 @@ func (s *Service) createAgentInTransaction(ctx context.Context, agents database.
 	return result, nil
 }
 
-func (s *Service) resolveSkillRef(ctx context.Context, skill models.SkillRef) (platformtypes.AgentSkillRef, error) {
+func (s *registry) resolveSkillRef(ctx context.Context, skill models.SkillRef) (platformtypes.AgentSkillRef, error) {
 	image := strings.TrimSpace(skill.Image)
 	registrySkillName := strings.TrimSpace(skill.RegistrySkillName)
 	hasImage := image != ""

@@ -139,8 +139,18 @@ func (s *registryServiceImpl) promptService() promptsvc.Registry {
 	return promptsvc.New(promptsvc.Dependencies{Prompts: stores.prompts, Tx: s.storeDB})
 }
 
-type deploymentServiceImpl struct {
+type deploymentInternals interface {
 	deploymentsvc.Registry
+	ResolveDeploymentAdapter(platform string) (registrytypes.DeploymentPlatformAdapter, error)
+	ResolveDeploymentAdapterByProviderID(ctx context.Context, providerID string) (registrytypes.DeploymentPlatformAdapter, error)
+	CleanupExistingDeployment(ctx context.Context, resourceName, version, resourceType string) error
+	CreateManagedDeploymentRecord(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
+	ApplyDeploymentActionResult(ctx context.Context, deploymentID string, result *models.DeploymentActionResult) error
+	ApplyFailedDeploymentAction(ctx context.Context, deploymentID string, deployErr error, result *models.DeploymentActionResult) error
+}
+
+type deploymentServiceImpl struct {
+	deploymentInternals
 }
 
 func (s *deploymentServiceImpl) resolveDeploymentAdapterByProviderID(ctx context.Context, providerID string) (registrytypes.DeploymentPlatformAdapter, error) {
@@ -149,13 +159,18 @@ func (s *deploymentServiceImpl) resolveDeploymentAdapterByProviderID(ctx context
 
 func (s *registryServiceImpl) deploymentService() *deploymentServiceImpl {
 	stores := s.readStores()
-	return &deploymentServiceImpl{Registry: deploymentsvc.New(deploymentsvc.Dependencies{
+	deploymentSvc := deploymentsvc.New(deploymentsvc.Dependencies{
 		Deployments:        stores.deployments,
 		Providers:          providersvc.New(providersvc.Dependencies{Providers: stores.providers}),
 		Servers:            stores.servers,
 		Agents:             stores.agents,
 		DeploymentAdapters: s.deploymentAdapters,
-	})}
+	})
+	internals, ok := deploymentSvc.(deploymentInternals)
+	if !ok {
+		panic("deployment service does not implement deploymentInternals")
+	}
+	return &deploymentServiceImpl{deploymentInternals: internals}
 }
 
 func (s *registryServiceImpl) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {

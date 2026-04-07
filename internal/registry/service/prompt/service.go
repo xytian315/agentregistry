@@ -30,12 +30,12 @@ type Registry interface {
 	DeletePrompt(ctx context.Context, promptName, version string) error
 }
 
-type Service struct {
+type registry struct {
 	prompts database.PromptStore
 	tx      database.Transactor
 }
 
-var _ Registry = (*Service)(nil)
+var _ Registry = (*registry)(nil)
 
 func New(deps Dependencies) Registry {
 	if deps.Prompts == nil && deps.StoreDB != nil {
@@ -45,44 +45,44 @@ func New(deps Dependencies) Registry {
 		deps.Tx = deps.StoreDB
 	}
 
-	return &Service{
+	return &registry{
 		prompts: deps.Prompts,
 		tx:      deps.Tx,
 	}
 }
 
-func (s *Service) ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
+func (s *registry) ListPrompts(ctx context.Context, filter *database.PromptFilter, cursor string, limit int) ([]*models.PromptResponse, string, error) {
 	if limit <= 0 {
 		limit = 30
 	}
 	return s.prompts.ListPrompts(ctx, filter, cursor, limit)
 }
 
-func (s *Service) GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error) {
+func (s *registry) GetPromptByName(ctx context.Context, promptName string) (*models.PromptResponse, error) {
 	return s.prompts.GetPromptByName(ctx, promptName)
 }
 
-func (s *Service) GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error) {
+func (s *registry) GetPromptByNameAndVersion(ctx context.Context, promptName, version string) (*models.PromptResponse, error) {
 	return s.prompts.GetPromptByNameAndVersion(ctx, promptName, version)
 }
 
-func (s *Service) GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*models.PromptResponse, error) {
+func (s *registry) GetAllVersionsByPromptName(ctx context.Context, promptName string) ([]*models.PromptResponse, error) {
 	return s.prompts.GetAllVersionsByPromptName(ctx, promptName)
 }
 
-func (s *Service) CreatePrompt(ctx context.Context, req *models.PromptJSON) (*models.PromptResponse, error) {
+func (s *registry) CreatePrompt(ctx context.Context, req *models.PromptJSON) (*models.PromptResponse, error) {
 	return txutil.RunT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*models.PromptResponse, error) {
 		return s.createPromptInTransaction(txCtx, scope.Prompts(), req)
 	})
 }
 
-func (s *Service) DeletePrompt(ctx context.Context, promptName, version string) error {
+func (s *registry) DeletePrompt(ctx context.Context, promptName, version string) error {
 	return txutil.Run(ctx, s.tx, func(txCtx context.Context, scope database.Scope) error {
 		return scope.Prompts().DeletePrompt(txCtx, promptName, version)
 	})
 }
 
-func (s *Service) createPromptInTransaction(ctx context.Context, prompts database.PromptStore, req *models.PromptJSON) (*models.PromptResponse, error) {
+func (s *registry) createPromptInTransaction(ctx context.Context, prompts database.PromptStore, req *models.PromptJSON) (*models.PromptResponse, error) {
 	if req == nil || req.Name == "" || req.Version == "" {
 		return nil, fmt.Errorf("invalid prompt payload: name and version are required")
 	}

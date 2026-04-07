@@ -30,12 +30,12 @@ type Registry interface {
 	DeleteSkill(ctx context.Context, skillName, version string) error
 }
 
-type Service struct {
+type registry struct {
 	skills database.SkillStore
 	tx     database.Transactor
 }
 
-var _ Registry = (*Service)(nil)
+var _ Registry = (*registry)(nil)
 
 func New(deps Dependencies) Registry {
 	if deps.Skills == nil && deps.StoreDB != nil {
@@ -45,44 +45,44 @@ func New(deps Dependencies) Registry {
 		deps.Tx = deps.StoreDB
 	}
 
-	return &Service{
+	return &registry{
 		skills: deps.Skills,
 		tx:     deps.Tx,
 	}
 }
 
-func (s *Service) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
+func (s *registry) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {
 	if limit <= 0 {
 		limit = 30
 	}
 	return s.skills.ListSkills(ctx, filter, cursor, limit)
 }
 
-func (s *Service) GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error) {
+func (s *registry) GetSkillByName(ctx context.Context, skillName string) (*models.SkillResponse, error) {
 	return s.skills.GetSkillByName(ctx, skillName)
 }
 
-func (s *Service) GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error) {
+func (s *registry) GetSkillByNameAndVersion(ctx context.Context, skillName, version string) (*models.SkillResponse, error) {
 	return s.skills.GetSkillByNameAndVersion(ctx, skillName, version)
 }
 
-func (s *Service) GetAllVersionsBySkillName(ctx context.Context, skillName string) ([]*models.SkillResponse, error) {
+func (s *registry) GetAllVersionsBySkillName(ctx context.Context, skillName string) ([]*models.SkillResponse, error) {
 	return s.skills.GetAllVersionsBySkillName(ctx, skillName)
 }
 
-func (s *Service) CreateSkill(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error) {
+func (s *registry) CreateSkill(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error) {
 	return txutil.RunT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*models.SkillResponse, error) {
 		return s.createSkillInTransaction(txCtx, scope.Skills(), req)
 	})
 }
 
-func (s *Service) DeleteSkill(ctx context.Context, skillName, version string) error {
+func (s *registry) DeleteSkill(ctx context.Context, skillName, version string) error {
 	return txutil.Run(ctx, s.tx, func(txCtx context.Context, scope database.Scope) error {
 		return scope.Skills().DeleteSkill(txCtx, skillName, version)
 	})
 }
 
-func (s *Service) createSkillInTransaction(ctx context.Context, skills database.SkillStore, req *models.SkillJSON) (*models.SkillResponse, error) {
+func (s *registry) createSkillInTransaction(ctx context.Context, skills database.SkillStore, req *models.SkillJSON) (*models.SkillResponse, error) {
 	if req == nil || req.Name == "" || req.Version == "" {
 		return nil, fmt.Errorf("invalid skill payload: name and version are required")
 	}
