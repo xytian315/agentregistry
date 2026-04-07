@@ -9,17 +9,9 @@ import (
 	registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
 )
 
-type platformStore interface {
-	ListProviders(ctx context.Context, platform *string) ([]*models.Provider, error)
-	CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error)
-	GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error)
-	UpdateProvider(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
-	DeleteProvider(ctx context.Context, providerID string) error
-}
-
 type providerAdapterBase struct {
 	providerPlatform string
-	registry         platformStore
+	providers        database.ProviderStore
 }
 
 func (a *providerAdapterBase) Platform() string {
@@ -28,7 +20,7 @@ func (a *providerAdapterBase) Platform() string {
 
 func (a *providerAdapterBase) ListProviders(ctx context.Context) ([]*models.Provider, error) {
 	platform := a.providerPlatform
-	return a.registry.ListProviders(ctx, &platform)
+	return a.providers.ListProviders(ctx, &platform)
 }
 
 func (a *providerAdapterBase) CreateProvider(ctx context.Context, in *models.CreateProviderInput) (*models.Provider, error) {
@@ -38,11 +30,11 @@ func (a *providerAdapterBase) CreateProvider(ctx context.Context, in *models.Cre
 	if in.Platform != a.providerPlatform {
 		return nil, database.ErrInvalidInput
 	}
-	return a.registry.CreateProvider(ctx, in)
+	return a.providers.CreateProvider(ctx, in)
 }
 
 func (a *providerAdapterBase) GetProvider(ctx context.Context, providerID string) (*models.Provider, error) {
-	provider, err := a.registry.GetProviderByID(ctx, providerID)
+	provider, err := a.providers.GetProviderByID(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +49,7 @@ func (a *providerAdapterBase) UpdateProvider(ctx context.Context, providerID str
 	if err != nil {
 		return nil, err
 	}
-	updated, err := a.registry.UpdateProvider(ctx, provider.ID, in)
+	updated, err := a.providers.UpdateProvider(ctx, provider.ID, in)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +63,7 @@ func (a *providerAdapterBase) DeleteProvider(ctx context.Context, providerID str
 	if _, err := a.GetProvider(ctx, providerID); err != nil {
 		return err
 	}
-	return a.registry.DeleteProvider(ctx, providerID)
+	return a.providers.DeleteProvider(ctx, providerID)
 }
 
 type localProviderAdapter struct {
@@ -85,18 +77,18 @@ type kubernetesProviderAdapter struct {
 // DefaultPlatformAdapters returns the OSS provider adapters for local and
 // kubernetes. Keeping this in the provider service domain avoids routing
 // packages owning provider CRUD extension behavior.
-func DefaultPlatformAdapters(registry platformStore) map[string]registrytypes.ProviderPlatformAdapter {
+func DefaultPlatformAdapters(providers database.ProviderStore) map[string]registrytypes.ProviderPlatformAdapter {
 	return map[string]registrytypes.ProviderPlatformAdapter{
 		"local": &localProviderAdapter{
 			providerAdapterBase: providerAdapterBase{
 				providerPlatform: "local",
-				registry:         registry,
+				providers:        providers,
 			},
 		},
 		"kubernetes": &kubernetesProviderAdapter{
 			providerAdapterBase: providerAdapterBase{
 				providerPlatform: "kubernetes",
-				registry:         registry,
+				providers:        providers,
 			},
 		},
 	}
