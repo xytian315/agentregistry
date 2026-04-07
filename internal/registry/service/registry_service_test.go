@@ -46,8 +46,92 @@ func (m *splitDomainViewMockDB) ListServers(ctx context.Context, filter *databas
 	return m.listServersFn(ctx, filter, cursor, limit)
 }
 
+func (m *splitDomainViewMockDB) DeleteServer(context.Context, string, string) error {
+	return nil
+}
+
+func (m *splitDomainViewMockDB) CreateServer(context.Context, *apiv0.ServerJSON, *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *splitDomainViewMockDB) UpdateServer(context.Context, string, string, *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *splitDomainViewMockDB) SetServerStatus(context.Context, string, string, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *splitDomainViewMockDB) GetServerByName(context.Context, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *splitDomainViewMockDB) GetServerByNameAndVersion(context.Context, string, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *splitDomainViewMockDB) GetAllVersionsByServerName(context.Context, string) ([]*apiv0.ServerResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *splitDomainViewMockDB) GetCurrentLatestVersion(context.Context, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *splitDomainViewMockDB) CountServerVersions(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (m *splitDomainViewMockDB) CheckVersionExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+func (m *splitDomainViewMockDB) UnmarkAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (m *splitDomainViewMockDB) AcquireServerCreateLock(context.Context, string) error {
+	return nil
+}
+
+func (m *splitDomainViewMockDB) SetServerEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (m *splitDomainViewMockDB) GetServerEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *splitDomainViewMockDB) UpsertServerReadme(context.Context, *database.ServerReadme) error {
+	return nil
+}
+
+func (m *splitDomainViewMockDB) GetServerReadme(context.Context, string, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *splitDomainViewMockDB) GetLatestServerReadme(context.Context, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
 func (m *splitDomainViewMockDB) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
 	return m.getProviderByIDFn(ctx, providerID)
+}
+
+func (m *splitDomainViewMockDB) CreateProvider(context.Context, *models.CreateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *splitDomainViewMockDB) ListProviders(context.Context, *string) ([]*models.Provider, error) {
+	return nil, nil
+}
+
+func (m *splitDomainViewMockDB) UpdateProvider(context.Context, string, *models.UpdateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *splitDomainViewMockDB) DeleteProvider(context.Context, string) error {
+	return nil
 }
 
 func TestDomainServiceViewsShareRegistryState(t *testing.T) {
@@ -78,7 +162,7 @@ func TestDomainServiceViewsShareRegistryState(t *testing.T) {
 		},
 	}
 
-	servers, _, err := svc.serverService().ListServers(ctx, nil, "", 1)
+	servers, _, err := svc.serverService().BrowseServers(ctx, nil, "", 1)
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
 	assert.Equal(t, "com.example/weather", servers[0].Server.Name)
@@ -125,7 +209,7 @@ func TestValidateNoDuplicateRemoteURLs(t *testing.T) {
 
 	// Create existing servers using the new CreateServer method
 	for _, server := range existingServers {
-		_, err := serverService.CreateServer(ctx, server)
+		_, err := serverService.PublishServer(ctx, server)
 		require.NoError(t, err, "failed to create server: %v", err)
 	}
 
@@ -191,7 +275,7 @@ func TestValidateNoDuplicateRemoteURLs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := serverService.CreateServer(ctx, &tt.serverDetail)
+			_, err := serverService.PublishServer(ctx, &tt.serverDetail)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -209,7 +293,7 @@ func TestGetServerByName(t *testing.T) {
 	serverService := newRegistryTestServerService(testDB, &config.Config{EnableRegistryValidation: false})
 
 	// Create multiple versions of the same server
-	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        "com.example/test-server",
 		Description: "Test server v1",
@@ -217,7 +301,7 @@ func TestGetServerByName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        "com.example/test-server",
 		Description: "Test server v2",
@@ -253,7 +337,7 @@ func TestGetServerByName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := serverService.GetServerByName(ctx, tt.serverName)
+			result, err := serverService.LookupServer(ctx, tt.serverName)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -280,7 +364,7 @@ func TestGetServerByNameAndVersion(t *testing.T) {
 	serverName := "com.example/versioned-server"
 
 	// Create multiple versions of the same server
-	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Versioned server v1",
@@ -288,7 +372,7 @@ func TestGetServerByNameAndVersion(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Versioned server v2",
@@ -346,7 +430,7 @@ func TestGetServerByNameAndVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := serverService.GetServerByNameAndVersion(ctx, tt.serverName, tt.version)
+			result, err := serverService.LookupServerVersion(ctx, tt.serverName, tt.version)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -372,7 +456,7 @@ func TestStoreAndRetrieveServerReadme(t *testing.T) {
 
 	serverName := "com.example/readme-server"
 
-	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Readme server v1",
@@ -382,9 +466,9 @@ func TestStoreAndRetrieveServerReadme(t *testing.T) {
 
 	firstReadme := []byte("# Version 1\nHello world\n")
 	ctxWithAuth := internaldb.WithTestSession(ctx)
-	require.NoError(t, serverService.StoreServerReadme(ctxWithAuth, serverName, "1.0.0", firstReadme, ""))
+	require.NoError(t, serverService.SaveServerReadme(ctxWithAuth, serverName, "1.0.0", firstReadme, ""))
 
-	readmeV1, err := serverService.GetServerReadmeByVersion(ctx, serverName, "1.0.0")
+	readmeV1, err := serverService.ServerReadme(ctx, serverName, "1.0.0")
 	require.NoError(t, err)
 	require.NotNil(t, readmeV1)
 	assert.Equal(t, "1.0.0", readmeV1.Version)
@@ -393,13 +477,13 @@ func TestStoreAndRetrieveServerReadme(t *testing.T) {
 	assert.Equal(t, string(firstReadme), string(readmeV1.Content))
 	assert.NotEmpty(t, readmeV1.SHA256)
 
-	latest, err := serverService.GetServerReadmeLatest(ctx, serverName)
+	latest, err := serverService.LatestServerReadme(ctx, serverName)
 	require.NoError(t, err)
 	require.NotNil(t, latest)
 	assert.Equal(t, "1.0.0", latest.Version)
 	assert.Equal(t, string(firstReadme), string(latest.Content))
 
-	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Readme server v2",
@@ -408,15 +492,15 @@ func TestStoreAndRetrieveServerReadme(t *testing.T) {
 	require.NoError(t, err)
 
 	secondReadme := []byte("# Version 2\nUpdated\n")
-	require.NoError(t, serverService.StoreServerReadme(ctxWithAuth, serverName, "2.0.0", secondReadme, "text/markdown"))
+	require.NoError(t, serverService.SaveServerReadme(ctxWithAuth, serverName, "2.0.0", secondReadme, "text/markdown"))
 
-	latest, err = serverService.GetServerReadmeLatest(ctx, serverName)
+	latest, err = serverService.LatestServerReadme(ctx, serverName)
 	require.NoError(t, err)
 	require.NotNil(t, latest)
 	assert.Equal(t, "2.0.0", latest.Version)
 	assert.Equal(t, string(secondReadme), string(latest.Content))
 
-	readmeV1Again, err := serverService.GetServerReadmeByVersion(ctx, serverName, "1.0.0")
+	readmeV1Again, err := serverService.ServerReadme(ctx, serverName, "1.0.0")
 	require.NoError(t, err)
 	assert.Equal(t, string(firstReadme), string(readmeV1Again.Content))
 }
@@ -428,7 +512,7 @@ func TestGetServerReadmeMissing(t *testing.T) {
 
 	serverName := "com.example/missing-readme"
 
-	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Server without readme",
@@ -436,11 +520,11 @@ func TestGetServerReadmeMissing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = serverService.GetServerReadmeByVersion(ctx, serverName, "1.0.0")
+	_, err = serverService.ServerReadme(ctx, serverName, "1.0.0")
 	require.Error(t, err)
 	assert.Equal(t, database.ErrNotFound, err)
 
-	_, err = serverService.GetServerReadmeLatest(ctx, serverName)
+	_, err = serverService.LatestServerReadme(ctx, serverName)
 	require.Error(t, err)
 	assert.Equal(t, database.ErrNotFound, err)
 }
@@ -453,7 +537,7 @@ func TestGetAllVersionsByServerName(t *testing.T) {
 	serverName := "com.example/multi-version-server"
 
 	// Create multiple versions of the same server
-	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Multi-version server v1",
@@ -461,7 +545,7 @@ func TestGetAllVersionsByServerName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Multi-version server v2",
@@ -469,7 +553,7 @@ func TestGetAllVersionsByServerName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err = serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Multi-version server v2.1",
@@ -522,7 +606,7 @@ func TestGetAllVersionsByServerName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := serverService.GetAllVersionsByServerName(ctx, tt.serverName)
+			result, err := serverService.ServerHistory(ctx, tt.serverName)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -556,7 +640,7 @@ func TestCreateServerConcurrentVersionsNoRace(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			result, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+			result, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 				Schema:      model.CurrentSchemaURL,
 				Name:        serverName,
 				Description: fmt.Sprintf("Version %d", idx),
@@ -581,7 +665,7 @@ func TestCreateServerConcurrentVersionsNoRace(t *testing.T) {
 	}
 
 	// Query database to check the final state after all creates complete
-	allVersions, err := serverService.GetAllVersionsByServerName(ctx, serverName)
+	allVersions, err := serverService.ServerHistory(ctx, serverName)
 	require.NoError(t, err, "failed to get all versions")
 
 	latestCount := 0
@@ -606,7 +690,7 @@ func TestUpdateServer(t *testing.T) {
 	version := "1.0.0"
 
 	// Create initial server
-	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Original description",
@@ -685,7 +769,7 @@ func TestUpdateServer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctxWithAuth := internaldb.WithTestSession(ctx)
-			result, err := serverService.UpdateServer(ctxWithAuth, tt.serverName, tt.version, tt.updatedServer, tt.newStatus)
+			result, err := serverService.ReviseServer(ctxWithAuth, tt.serverName, tt.version, tt.updatedServer, tt.newStatus)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -733,18 +817,18 @@ func TestUpdateServer_SkipValidationForDeletedServers(t *testing.T) {
 	// Create initial server (validation disabled for creation in this test)
 	originalConfig := cfg.EnableRegistryValidation
 	cfg.EnableRegistryValidation = false
-	_, err := serverService.CreateServer(ctx, invalidServer)
+	_, err := serverService.PublishServer(ctx, invalidServer)
 	require.NoError(t, err, "failed to create server with validation disabled")
 	cfg.EnableRegistryValidation = originalConfig
 
 	// First, set server to deleted status
 	ctxWithAuth := internaldb.WithTestSession(ctx)
 	deletedStatus := string(model.StatusDeleted)
-	_, err = serverService.UpdateServer(ctxWithAuth, serverName, version, invalidServer, &deletedStatus)
+	_, err = serverService.ReviseServer(ctxWithAuth, serverName, version, invalidServer, &deletedStatus)
 	require.NoError(t, err, "should be able to set server to deleted (validation should be skipped)")
 
 	// Verify server is now deleted
-	updatedServer, err := serverService.GetServerByNameAndVersion(ctx, serverName, version)
+	updatedServer, err := serverService.LookupServerVersion(ctx, serverName, version)
 	require.NoError(t, err)
 	assert.Equal(t, model.StatusDeleted, updatedServer.Meta.Official.Status)
 
@@ -765,7 +849,7 @@ func TestUpdateServer_SkipValidationForDeletedServers(t *testing.T) {
 	}
 
 	// This should succeed despite invalid packages because server is deleted
-	result, err := serverService.UpdateServer(ctxWithAuth, serverName, version, updatedInvalidServer, nil)
+	result, err := serverService.ReviseServer(ctxWithAuth, serverName, version, updatedInvalidServer, nil)
 	require.NoError(t, err, "updating deleted server should skip registry validation")
 	assert.NotNil(t, result)
 	assert.Equal(t, "Updated description for deleted server", result.Server.Description)
@@ -789,13 +873,13 @@ func TestUpdateServer_SkipValidationForDeletedServers(t *testing.T) {
 
 	// Create active server (with validation disabled)
 	cfg.EnableRegistryValidation = false
-	_, err = serverService.CreateServer(ctx, activeServer)
+	_, err = serverService.PublishServer(ctx, activeServer)
 	require.NoError(t, err)
 	cfg.EnableRegistryValidation = originalConfig
 
 	// Update server and set to deleted in same operation - should skip validation
 	newDeletedStatus := string(model.StatusDeleted)
-	result2, err := serverService.UpdateServer(ctxWithAuth, "com.example/being-deleted-test", "1.0.0", activeServer, &newDeletedStatus)
+	result2, err := serverService.ReviseServer(ctxWithAuth, "com.example/being-deleted-test", "1.0.0", activeServer, &newDeletedStatus)
 	require.NoError(t, err, "updating server being set to deleted should skip registry validation")
 	assert.NotNil(t, result2)
 	assert.Equal(t, model.StatusDeleted, result2.Meta.Official.Status)
@@ -818,7 +902,7 @@ func TestListServers(t *testing.T) {
 	}
 
 	for _, server := range testServers {
-		_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+		_, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 			Schema:      model.CurrentSchemaURL,
 			Name:        server.name,
 			Description: server.description,
@@ -875,7 +959,7 @@ func TestListServers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results, nextCursor, err := serverService.ListServers(ctx, tt.filter, tt.cursor, tt.limit)
+			results, nextCursor, err := serverService.BrowseServers(ctx, tt.filter, tt.cursor, tt.limit)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -916,7 +1000,7 @@ func TestVersionComparison(t *testing.T) {
 		if v.delay > 0 {
 			time.Sleep(v.delay)
 		}
-		_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+		_, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 			Schema:      model.CurrentSchemaURL,
 			Name:        serverName,
 			Description: v.description,
@@ -926,14 +1010,14 @@ func TestVersionComparison(t *testing.T) {
 	}
 
 	// Get the latest version - should be 2.1.0 based on semantic versioning
-	latest, err := serverService.GetServerByName(ctx, serverName)
+	latest, err := serverService.LookupServer(ctx, serverName)
 	require.NoError(t, err)
 
 	assert.Equal(t, "2.1.0", latest.Server.Version, "Latest version should be 2.1.0")
 	assert.True(t, latest.Meta.Official.IsLatest)
 
 	// Verify only one version is marked as latest
-	allVersions, err := serverService.GetAllVersionsByServerName(ctx, serverName)
+	allVersions, err := serverService.ServerHistory(ctx, serverName)
 	require.NoError(t, err)
 
 	latestCount := 0
@@ -1163,6 +1247,22 @@ type deployCreateMockDB struct {
 	removeDeploymentByIDFn      func(ctx context.Context, id string) error
 }
 
+func (m *deployCreateMockDB) Servers() database.ServerStore {
+	return m
+}
+
+func (m *deployCreateMockDB) Agents() database.AgentStore {
+	return m
+}
+
+func (m *deployCreateMockDB) Providers() database.ProviderStore {
+	return m
+}
+
+func (m *deployCreateMockDB) Deployments() database.DeploymentStore {
+	return m
+}
+
 // deploymentMockDB is a minimal mock for database.Store that only implements
 // the methods needed for testing deployment cleanup logic. All other methods panic.
 type deploymentMockDB struct {
@@ -1174,16 +1274,160 @@ type deploymentMockDB struct {
 	removeDeploymentByIdFn func(ctx context.Context, id string) error
 }
 
+func (m *deploymentMockDB) Providers() database.ProviderStore {
+	return m
+}
+
+func (m *deploymentMockDB) Deployments() database.DeploymentStore {
+	return m
+}
+
 func (m *deployCreateMockDB) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
 	return m.getProviderByIDFn(ctx, providerID)
+}
+
+func (m *deployCreateMockDB) CreateProvider(context.Context, *models.CreateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deployCreateMockDB) ListProviders(context.Context, *string) ([]*models.Provider, error) {
+	return nil, nil
+}
+
+func (m *deployCreateMockDB) UpdateProvider(context.Context, string, *models.UpdateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deployCreateMockDB) DeleteProvider(context.Context, string) error {
+	return nil
+}
+
+func (m *deployCreateMockDB) DeleteServer(context.Context, string, string) error {
+	return nil
+}
+
+func (m *deployCreateMockDB) CreateServer(context.Context, *apiv0.ServerJSON, *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deployCreateMockDB) UpdateServer(context.Context, string, string, *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deployCreateMockDB) SetServerStatus(context.Context, string, string, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deployCreateMockDB) ListServers(context.Context, *database.ServerFilter, string, int) ([]*apiv0.ServerResponse, string, error) {
+	return nil, "", nil
 }
 
 func (m *deployCreateMockDB) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
 	return m.getServerByNameAndVersionFn(ctx, serverName, version)
 }
 
+func (m *deployCreateMockDB) GetServerByName(context.Context, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *deployCreateMockDB) GetAllVersionsByServerName(context.Context, string) ([]*apiv0.ServerResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *deployCreateMockDB) GetCurrentLatestVersion(context.Context, string) (*apiv0.ServerResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *deployCreateMockDB) CountServerVersions(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (m *deployCreateMockDB) CheckVersionExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+func (m *deployCreateMockDB) UnmarkAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (m *deployCreateMockDB) AcquireServerCreateLock(context.Context, string) error {
+	return nil
+}
+
+func (m *deployCreateMockDB) SetServerEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (m *deployCreateMockDB) GetServerEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *deployCreateMockDB) UpsertServerReadme(context.Context, *database.ServerReadme) error {
+	return nil
+}
+
+func (m *deployCreateMockDB) GetServerReadme(context.Context, string, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *deployCreateMockDB) GetLatestServerReadme(context.Context, string) (*database.ServerReadme, error) {
+	return nil, database.ErrNotFound
+}
+
 func (m *deployCreateMockDB) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
 	return m.getAgentByNameAndVersionFn(ctx, agentName, version)
+}
+
+func (m *deployCreateMockDB) CreateAgent(context.Context, *models.AgentJSON, *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deployCreateMockDB) UpdateAgent(context.Context, string, string, *models.AgentJSON) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deployCreateMockDB) SetAgentStatus(context.Context, string, string, string) (*models.AgentResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deployCreateMockDB) ListAgents(context.Context, *database.AgentFilter, string, int) ([]*models.AgentResponse, string, error) {
+	return nil, "", nil
+}
+
+func (m *deployCreateMockDB) GetAgentByName(context.Context, string) (*models.AgentResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *deployCreateMockDB) GetAllVersionsByAgentName(context.Context, string) ([]*models.AgentResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *deployCreateMockDB) GetCurrentLatestAgentVersion(context.Context, string) (*models.AgentResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *deployCreateMockDB) CountAgentVersions(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (m *deployCreateMockDB) CheckAgentVersionExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+func (m *deployCreateMockDB) UnmarkAgentAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (m *deployCreateMockDB) DeleteAgent(context.Context, string, string) error {
+	return nil
+}
+
+func (m *deployCreateMockDB) SetAgentEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
+	return nil
+}
+
+func (m *deployCreateMockDB) GetAgentEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
+	return nil, database.ErrNotFound
 }
 
 func (m *deployCreateMockDB) CreateDeployment(ctx context.Context, deployment *models.Deployment) error {
@@ -1210,8 +1454,24 @@ func (m *deploymentMockDB) ListProviders(ctx context.Context, platform *string) 
 	return m.listProvidersFn(ctx, platform)
 }
 
+func (m *deploymentMockDB) CreateProvider(context.Context, *models.CreateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deploymentMockDB) UpdateProvider(context.Context, string, *models.UpdateProviderInput) (*models.Provider, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *deploymentMockDB) DeleteProvider(context.Context, string) error {
+	return nil
+}
+
 func (m *deploymentMockDB) GetDeploymentByID(ctx context.Context, id string) (*models.Deployment, error) {
 	return m.getDeploymentByIDFn(ctx, id)
+}
+
+func (m *deploymentMockDB) CreateDeployment(context.Context, *models.Deployment) error {
+	return database.ErrInvalidInput
 }
 
 func (m *deploymentMockDB) GetDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
@@ -1220,6 +1480,10 @@ func (m *deploymentMockDB) GetDeployments(ctx context.Context, filter *models.De
 
 func (m *deploymentMockDB) GetProviderByID(ctx context.Context, providerID string) (*models.Provider, error) {
 	return m.getProviderByIDFn(ctx, providerID)
+}
+
+func (m *deploymentMockDB) UpdateDeploymentState(context.Context, string, *models.DeploymentStatePatch) error {
+	return nil
 }
 
 func (m *deploymentMockDB) RemoveDeploymentByID(ctx context.Context, id string) error {
@@ -1829,6 +2093,18 @@ type promptMockDB struct {
 	getPromptByNameAndVersionFn func(ctx context.Context, name, version string) (*models.PromptResponse, error)
 }
 
+func (m *promptMockDB) Prompts() database.PromptStore {
+	return m
+}
+
+func (m *promptMockDB) CreatePrompt(context.Context, *models.PromptJSON, *models.PromptRegistryExtensions) (*models.PromptResponse, error) {
+	return nil, database.ErrInvalidInput
+}
+
+func (m *promptMockDB) ListPrompts(context.Context, *database.PromptFilter, string, int) ([]*models.PromptResponse, string, error) {
+	return nil, "", nil
+}
+
 func (m *promptMockDB) GetPromptByName(ctx context.Context, name string) (*models.PromptResponse, error) {
 	if m.getPromptByNameFn != nil {
 		return m.getPromptByNameFn(ctx, name)
@@ -1838,6 +2114,30 @@ func (m *promptMockDB) GetPromptByName(ctx context.Context, name string) (*model
 
 func (m *promptMockDB) GetPromptByNameAndVersion(ctx context.Context, name, version string) (*models.PromptResponse, error) {
 	return m.getPromptByNameAndVersionFn(ctx, name, version)
+}
+
+func (m *promptMockDB) GetAllVersionsByPromptName(context.Context, string) ([]*models.PromptResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *promptMockDB) GetCurrentLatestPromptVersion(context.Context, string) (*models.PromptResponse, error) {
+	return nil, database.ErrNotFound
+}
+
+func (m *promptMockDB) CountPromptVersions(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (m *promptMockDB) CheckPromptVersionExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+func (m *promptMockDB) UnmarkPromptAsLatest(context.Context, string) error {
+	return nil
+}
+
+func (m *promptMockDB) DeletePrompt(context.Context, string, string) error {
+	return nil
 }
 
 func TestResolveAgentManifestPrompts(t *testing.T) {

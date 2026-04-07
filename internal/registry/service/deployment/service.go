@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	"github.com/agentregistry-dev/agentregistry/internal/registry/service/internal/deployutil"
 	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/database"
@@ -37,8 +39,8 @@ type Dependencies struct {
 	Deployments        database.DeploymentStore
 	Providers          providersvc.Registry
 	ProviderPlatforms  map[string]registrytypes.ProviderPlatformAdapter
-	Servers            database.ServerStore
-	Agents             database.AgentStore
+	Servers            serversvc.Registry
+	Agents             agentsvc.Registry
 	DeploymentAdapters map[string]registrytypes.DeploymentPlatformAdapter
 }
 
@@ -57,8 +59,8 @@ type Registry interface {
 type registry struct {
 	deployments database.DeploymentStore
 	providers   providersvc.Registry
-	servers     database.ServerStore
-	agents      database.AgentStore
+	servers     serversvc.Registry
+	agents      agentsvc.Registry
 	adapters    map[string]registrytypes.DeploymentPlatformAdapter
 }
 
@@ -75,10 +77,10 @@ func New(deps Dependencies) Registry {
 		})
 	}
 	if deps.Servers == nil && deps.StoreDB != nil {
-		deps.Servers = deps.StoreDB.Servers()
+		deps.Servers = serversvc.New(serversvc.Dependencies{StoreDB: deps.StoreDB})
 	}
 	if deps.Agents == nil && deps.StoreDB != nil {
-		deps.Agents = deps.StoreDB.Agents()
+		deps.Agents = agentsvc.New(agentsvc.Dependencies{StoreDB: deps.StoreDB})
 	}
 
 	adapters := deps.DeploymentAdapters
@@ -325,7 +327,7 @@ func (s *registry) CreateManagedDeploymentRecord(ctx context.Context, req *model
 
 	switch deployment.ResourceType {
 	case resourceTypeMCP:
-		serverResp, err := s.servers.GetServerByNameAndVersion(ctx, deployment.ServerName, deployment.Version)
+		serverResp, err := s.servers.LookupServerVersion(ctx, deployment.ServerName, deployment.Version)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, fmt.Errorf("server %s not found in registry: %w", deployment.ServerName, database.ErrNotFound)
@@ -334,7 +336,7 @@ func (s *registry) CreateManagedDeploymentRecord(ctx context.Context, req *model
 		}
 		deployment.Version = serverResp.Server.Version
 	case resourceTypeAgent:
-		agentResp, err := s.agents.GetAgentByNameAndVersion(ctx, deployment.ServerName, deployment.Version)
+		agentResp, err := s.agents.LookupAgentVersion(ctx, deployment.ServerName, deployment.Version)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, fmt.Errorf("agent %s not found in registry: %w", deployment.ServerName, database.ErrNotFound)

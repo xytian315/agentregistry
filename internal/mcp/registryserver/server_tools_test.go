@@ -46,14 +46,14 @@ type fakeMCPRegistry struct {
 	undeployFn               func(ctx context.Context, deployment *models.Deployment) error
 }
 
-func (f *fakeMCPRegistry) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+func (f *fakeMCPRegistry) BrowseAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
 	if f.listAgentsFn != nil {
 		return f.listAgentsFn(ctx, filter, cursor, limit)
 	}
 	return f.agents, "", nil
 }
 
-func (f *fakeMCPRegistry) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+func (f *fakeMCPRegistry) LookupAgent(ctx context.Context, agentName string) (*models.AgentResponse, error) {
 	if f.getAgentByNameFn != nil {
 		return f.getAgentByNameFn(ctx, agentName)
 	}
@@ -63,33 +63,33 @@ func (f *fakeMCPRegistry) GetAgentByName(ctx context.Context, agentName string) 
 	return nil, database.ErrNotFound
 }
 
-func (f *fakeMCPRegistry) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+func (f *fakeMCPRegistry) LookupAgentVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
 	if f.getAgentByNameVersionFn != nil {
 		return f.getAgentByNameVersionFn(ctx, agentName, version)
 	}
-	return f.GetAgentByName(ctx, agentName)
+	return f.LookupAgent(ctx, agentName)
 }
 
-func (f *fakeMCPRegistry) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+func (f *fakeMCPRegistry) AgentHistory(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
 	if len(f.agents) > 0 {
 		return f.agents, nil
 	}
 	return nil, database.ErrNotFound
 }
 
-func (f *fakeMCPRegistry) CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+func (f *fakeMCPRegistry) PublishAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) DeleteAgent(ctx context.Context, agentName, version string) error {
+func (f *fakeMCPRegistry) RemoveAgent(ctx context.Context, agentName, version string) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
+func (f *fakeMCPRegistry) SaveAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
+func (f *fakeMCPRegistry) AgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
 	return nil, database.ErrNotFound
 }
 
@@ -101,21 +101,21 @@ func (f *fakeMCPRegistry) ResolveAgentManifestPrompts(ctx context.Context, manif
 	return nil, nil
 }
 
-func (f *fakeMCPRegistry) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+func (f *fakeMCPRegistry) BrowseServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
 	if f.listServersFn != nil {
 		return f.listServersFn(ctx, filter, cursor, limit)
 	}
 	return f.servers, "", nil
 }
 
-func (f *fakeMCPRegistry) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+func (f *fakeMCPRegistry) LookupServer(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
 	if len(f.servers) > 0 {
 		return f.servers[0], nil
 	}
 	return nil, database.ErrNotFound
 }
 
-func (f *fakeMCPRegistry) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+func (f *fakeMCPRegistry) LookupServerVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
 	if f.getServerByNameVersionFn != nil {
 		return f.getServerByNameVersionFn(ctx, serverName, version)
 	}
@@ -125,26 +125,26 @@ func (f *fakeMCPRegistry) GetServerByNameAndVersion(ctx context.Context, serverN
 	return nil, database.ErrNotFound
 }
 
-func (f *fakeMCPRegistry) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+func (f *fakeMCPRegistry) ServerHistory(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
 	if f.getAllServerVersionsFn != nil {
 		return f.getAllServerVersionsFn(ctx, serverName)
 	}
 	return f.servers, nil
 }
 
-func (f *fakeMCPRegistry) CreateServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+func (f *fakeMCPRegistry) PublishServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) UpdateServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error) {
+func (f *fakeMCPRegistry) ReviseServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) StoreServerReadme(ctx context.Context, serverName, version string, content []byte, contentType string) error {
+func (f *fakeMCPRegistry) SaveServerReadme(ctx context.Context, serverName, version string, content []byte, contentType string) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) GetServerReadmeLatest(ctx context.Context, serverName string) (*database.ServerReadme, error) {
+func (f *fakeMCPRegistry) LatestServerReadme(ctx context.Context, serverName string) (*database.ServerReadme, error) {
 	if f.getServerReadmeLatestFn != nil {
 		return f.getServerReadmeLatestFn(ctx, serverName)
 	}
@@ -154,22 +154,22 @@ func (f *fakeMCPRegistry) GetServerReadmeLatest(ctx context.Context, serverName 
 	return nil, database.ErrNotFound
 }
 
-func (f *fakeMCPRegistry) GetServerReadmeByVersion(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
+func (f *fakeMCPRegistry) ServerReadme(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
 	if f.getServerReadmeByVerFn != nil {
 		return f.getServerReadmeByVerFn(ctx, serverName, version)
 	}
-	return f.GetServerReadmeLatest(ctx, serverName)
+	return f.LatestServerReadme(ctx, serverName)
 }
 
-func (f *fakeMCPRegistry) DeleteServer(ctx context.Context, serverName, version string) error {
+func (f *fakeMCPRegistry) RemoveServer(ctx context.Context, serverName, version string) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) UpsertServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
+func (f *fakeMCPRegistry) SaveServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeMCPRegistry) GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
+func (f *fakeMCPRegistry) ServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
 	return nil, database.ErrNotFound
 }
 

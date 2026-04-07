@@ -84,7 +84,7 @@ func addAgentTools(server *mcp.Server, registry agentsvc.Registry) {
 		}
 
 		limit := clampLimit(args.Limit)
-		agents, nextCursor, err := registry.ListAgents(ctx, filter, args.Cursor, limit)
+		agents, nextCursor, err := registry.BrowseAgents(ctx, filter, args.Cursor, limit)
 		if err != nil {
 			return nil, models.AgentListResponse{}, err
 		}
@@ -117,9 +117,9 @@ func addAgentTools(server *mcp.Server, registry agentsvc.Registry) {
 		var agent *models.AgentResponse
 		var err error
 		if version == "latest" {
-			agent, err = registry.GetAgentByName(ctx, args.Name)
+			agent, err = registry.LookupAgent(ctx, args.Name)
 		} else {
-			agent, err = registry.GetAgentByNameAndVersion(ctx, args.Name, version)
+			agent, err = registry.LookupAgentVersion(ctx, args.Name, version)
 		}
 		if err != nil {
 			return nil, models.AgentResponse{}, err
@@ -167,7 +167,7 @@ func addServerTools(server *mcp.Server, registry serversvc.Registry) {
 		}
 
 		limit := clampLimit(args.Limit)
-		servers, nextCursor, err := registry.ListServers(ctx, filter, args.Cursor, limit)
+		servers, nextCursor, err := registry.BrowseServers(ctx, filter, args.Cursor, limit)
 		if err != nil {
 			return nil, apiv0.ServerListResponse{}, err
 		}
@@ -199,7 +199,7 @@ func addServerTools(server *mcp.Server, registry serversvc.Registry) {
 		}
 
 		if args.All {
-			servers, err := registry.GetAllVersionsByServerName(ctx, args.Name)
+			servers, err := registry.ServerHistory(ctx, args.Name)
 			if err != nil {
 				return nil, apiv0.ServerListResponse{}, err
 			}
@@ -242,9 +242,9 @@ func addServerTools(server *mcp.Server, registry serversvc.Registry) {
 		var readme *database.ServerReadme
 		var err error
 		if version == "latest" {
-			readme, err = registry.GetServerReadmeLatest(ctx, args.Name)
+			readme, err = registry.LatestServerReadme(ctx, args.Name)
 		} else {
-			readme, err = registry.GetServerReadmeByVersion(ctx, args.Name, version)
+			readme, err = registry.ServerReadme(ctx, args.Name, version)
 		}
 		if err != nil {
 			return nil, ServerReadmePayload{}, err
@@ -489,7 +489,7 @@ type ServerReadmePayload struct {
 
 func fetchSingleServer(ctx context.Context, registry serversvc.Registry, name, version string) (*apiv0.ServerResponse, error) {
 	if version == "latest" {
-		servers, err := registry.GetAllVersionsByServerName(ctx, name)
+		servers, err := registry.ServerHistory(ctx, name)
 		if err != nil {
 			return nil, err
 		}
@@ -504,7 +504,7 @@ func fetchSingleServer(ctx context.Context, registry serversvc.Registry, name, v
 		return servers[0], nil
 	}
 
-	return registry.GetServerByNameAndVersion(ctx, name, version)
+	return registry.LookupServerVersion(ctx, name, version)
 }
 
 func clampLimit(limit int) int {

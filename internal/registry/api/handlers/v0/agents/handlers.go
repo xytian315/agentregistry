@@ -84,7 +84,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc agentsvc.
 			}
 		}
 
-		agents, nextCursor, err := agentSvc.ListAgents(ctx, filter, input.Cursor, input.Limit)
+		agents, nextCursor, err := agentSvc.BrowseAgents(ctx, filter, input.Cursor, input.Limit)
 		if err != nil {
 			if errors.Is(err, database.ErrInvalidInput) {
 				return nil, huma.Error400BadRequest(err.Error(), err)
@@ -134,9 +134,9 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc agentsvc.
 
 		var agentResp *agentmodels.AgentResponse
 		if version == "latest" {
-			agentResp, err = agentSvc.GetAgentByName(ctx, agentName)
+			agentResp, err = agentSvc.LookupAgent(ctx, agentName)
 		} else {
-			agentResp, err = agentSvc.GetAgentByNameAndVersion(ctx, agentName, version)
+			agentResp, err = agentSvc.LookupAgentVersion(ctx, agentName, version)
 		}
 		if err != nil {
 			if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
@@ -176,7 +176,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc agentsvc.
 			return nil, huma.Error400BadRequest("Invalid version encoding", err)
 		}
 
-		if err := agentSvc.DeleteAgent(ctx, agentName, version); err != nil {
+		if err := agentSvc.RemoveAgent(ctx, agentName, version); err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Agent not found")
 			}
@@ -208,7 +208,7 @@ func RegisterAgentsEndpoints(api huma.API, pathPrefix string, agentSvc agentsvc.
 			return nil, huma.Error400BadRequest("Invalid agent name encoding", err)
 		}
 
-		agents, err := agentSvc.GetAllVersionsByAgentName(ctx, agentName)
+		agents, err := agentSvc.AgentHistory(ctx, agentName)
 		if err != nil {
 			if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Agent not found")
@@ -246,7 +246,7 @@ type CreateAgentInput struct {
 // createAgentHandler is the shared handler logic for creating agents
 func createAgentHandler(ctx context.Context, input *CreateAgentInput, agentSvc agentsvc.Registry, deploymentSvc deploymentmeta.Lister) (*types.Response[agentmodels.AgentResponse], error) {
 	// Create/update the agent (published defaults to false in the service layer)
-	createdAgent, err := agentSvc.CreateAgent(ctx, &input.Body)
+	createdAgent, err := agentSvc.PublishAgent(ctx, &input.Body)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			return nil, huma.Error404NotFound("Not found")

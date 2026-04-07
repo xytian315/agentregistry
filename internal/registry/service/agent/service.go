@@ -34,14 +34,14 @@ type Dependencies struct {
 }
 
 type Registry interface {
-	ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
-	GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error)
-	GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
-	GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error)
-	CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error)
-	DeleteAgent(ctx context.Context, agentName, version string) error
-	UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error
-	GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error)
+	BrowseAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error)
+	LookupAgent(ctx context.Context, agentName string) (*models.AgentResponse, error)
+	LookupAgentVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error)
+	AgentHistory(ctx context.Context, agentName string) ([]*models.AgentResponse, error)
+	PublishAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error)
+	RemoveAgent(ctx context.Context, agentName, version string) error
+	SaveAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error
+	AgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error)
 	ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error)
 	ResolveAgentManifestPrompts(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.ResolvedPrompt, error)
 }
@@ -88,7 +88,7 @@ func New(deps Dependencies) Registry {
 	}
 }
 
-func (s *registry) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+func (s *registry) BrowseAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
 	if limit <= 0 {
 		limit = 30
 	}
@@ -100,37 +100,37 @@ func (s *registry) ListAgents(ctx context.Context, filter *database.AgentFilter,
 	return s.agents.ListAgents(ctx, filter, cursor, limit)
 }
 
-func (s *registry) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+func (s *registry) LookupAgent(ctx context.Context, agentName string) (*models.AgentResponse, error) {
 	return s.agents.GetAgentByName(ctx, agentName)
 }
 
-func (s *registry) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+func (s *registry) LookupAgentVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
 	return s.agents.GetAgentByNameAndVersion(ctx, agentName, version)
 }
 
-func (s *registry) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+func (s *registry) AgentHistory(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
 	return s.agents.GetAllVersionsByAgentName(ctx, agentName)
 }
 
-func (s *registry) CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+func (s *registry) PublishAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
 	return txutil.RunT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*models.AgentResponse, error) {
 		return s.createAgentInTransaction(txCtx, scope.Agents(), req)
 	})
 }
 
-func (s *registry) DeleteAgent(ctx context.Context, agentName, version string) error {
+func (s *registry) RemoveAgent(ctx context.Context, agentName, version string) error {
 	return txutil.Run(ctx, s.tx, func(txCtx context.Context, scope database.Scope) error {
 		return scope.Agents().DeleteAgent(txCtx, agentName, version)
 	})
 }
 
-func (s *registry) UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
+func (s *registry) SaveAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
 	return txutil.Run(ctx, s.tx, func(txCtx context.Context, scope database.Scope) error {
 		return scope.Agents().SetAgentEmbedding(txCtx, agentName, version, embedding)
 	})
 }
 
-func (s *registry) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
+func (s *registry) AgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
 	return s.agents.GetAgentEmbeddingMetadata(ctx, agentName, version)
 }
 
@@ -270,7 +270,7 @@ func (s *registry) createAgentInTransaction(ctx context.Context, agents database
 			if err != nil {
 				s.logger.Warn("failed to generate embedding for agent", "name", agentJSON.Name, "version", agentJSON.Version, "error", err)
 			} else if embedding != nil {
-				if err := s.UpsertAgentEmbedding(bgCtx, agentJSON.Name, agentJSON.Version, embedding); err != nil {
+				if err := s.SaveAgentEmbedding(bgCtx, agentJSON.Name, agentJSON.Version, embedding); err != nil {
 					s.logger.Warn("failed to store embedding for agent", "name", agentJSON.Name, "version", agentJSON.Version, "error", err)
 				}
 			}

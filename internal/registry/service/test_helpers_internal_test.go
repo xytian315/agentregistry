@@ -162,8 +162,8 @@ func (s *registryServiceImpl) deploymentService() *deploymentServiceImpl {
 	deploymentSvc := deploymentsvc.New(deploymentsvc.Dependencies{
 		Deployments:        stores.deployments,
 		Providers:          providersvc.New(providersvc.Dependencies{Providers: stores.providers}),
-		Servers:            stores.servers,
-		Agents:             stores.agents,
+		Servers:            s.serverService(),
+		Agents:             s.agentService(),
 		DeploymentAdapters: s.deploymentAdapters,
 	})
 	internals, ok := deploymentSvc.(deploymentInternals)
@@ -173,72 +173,72 @@ func (s *registryServiceImpl) deploymentService() *deploymentServiceImpl {
 	return &deploymentServiceImpl{deploymentInternals: internals}
 }
 
-func (s *registryServiceImpl) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
-	return s.serverService().ListServers(ctx, filter, cursor, limit)
+func (s *registryServiceImpl) BrowseServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
+	return s.serverService().BrowseServers(ctx, filter, cursor, limit)
 }
 
-func (s *registryServiceImpl) GetServerByName(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
-	return s.serverService().GetServerByName(ctx, serverName)
+func (s *registryServiceImpl) LookupServer(ctx context.Context, serverName string) (*apiv0.ServerResponse, error) {
+	return s.serverService().LookupServer(ctx, serverName)
 }
 
-func (s *registryServiceImpl) GetServerByNameAndVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
-	return s.serverService().GetServerByNameAndVersion(ctx, serverName, version)
+func (s *registryServiceImpl) LookupServerVersion(ctx context.Context, serverName, version string) (*apiv0.ServerResponse, error) {
+	return s.serverService().LookupServerVersion(ctx, serverName, version)
 }
 
-func (s *registryServiceImpl) GetAllVersionsByServerName(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
-	return s.serverService().GetAllVersionsByServerName(ctx, serverName)
+func (s *registryServiceImpl) ServerHistory(ctx context.Context, serverName string) ([]*apiv0.ServerResponse, error) {
+	return s.serverService().ServerHistory(ctx, serverName)
 }
 
-func (s *registryServiceImpl) CreateServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
-	return s.serverService().CreateServer(ctx, req)
+func (s *registryServiceImpl) PublishServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return s.serverService().PublishServer(ctx, req)
 }
 
-func (s *registryServiceImpl) UpdateServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error) {
-	return s.serverService().UpdateServer(ctx, serverName, version, req, newStatus)
+func (s *registryServiceImpl) ReviseServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error) {
+	return s.serverService().ReviseServer(ctx, serverName, version, req, newStatus)
 }
 
-func (s *registryServiceImpl) StoreServerReadme(ctx context.Context, serverName, version string, content []byte, contentType string) error {
-	return s.serverService().StoreServerReadme(ctx, serverName, version, content, contentType)
+func (s *registryServiceImpl) SaveServerReadme(ctx context.Context, serverName, version string, content []byte, contentType string) error {
+	return s.serverService().SaveServerReadme(ctx, serverName, version, content, contentType)
 }
 
-func (s *registryServiceImpl) GetServerReadmeLatest(ctx context.Context, serverName string) (*database.ServerReadme, error) {
-	return s.serverService().GetServerReadmeLatest(ctx, serverName)
+func (s *registryServiceImpl) LatestServerReadme(ctx context.Context, serverName string) (*database.ServerReadme, error) {
+	return s.serverService().LatestServerReadme(ctx, serverName)
 }
 
-func (s *registryServiceImpl) GetServerReadmeByVersion(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
-	return s.serverService().GetServerReadmeByVersion(ctx, serverName, version)
+func (s *registryServiceImpl) ServerReadme(ctx context.Context, serverName, version string) (*database.ServerReadme, error) {
+	return s.serverService().ServerReadme(ctx, serverName, version)
 }
 
-func (s *registryServiceImpl) DeleteServer(ctx context.Context, serverName, version string) error {
-	return s.serverService().DeleteServer(ctx, serverName, version)
+func (s *registryServiceImpl) RemoveServer(ctx context.Context, serverName, version string) error {
+	return s.serverService().RemoveServer(ctx, serverName, version)
 }
 
-func (s *registryServiceImpl) UpsertServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
-	return s.serverService().UpsertServerEmbedding(ctx, serverName, version, embedding)
+func (s *registryServiceImpl) SaveServerEmbedding(ctx context.Context, serverName, version string, embedding *database.SemanticEmbedding) error {
+	return s.serverService().SaveServerEmbedding(ctx, serverName, version, embedding)
 }
 
-func (s *registryServiceImpl) GetServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
-	return s.serverService().GetServerEmbeddingMetadata(ctx, serverName, version)
+func (s *registryServiceImpl) ServerEmbeddingMetadata(ctx context.Context, serverName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	return s.serverService().ServerEmbeddingMetadata(ctx, serverName, version)
 }
 
-func (s *registryServiceImpl) ListAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
-	return s.agentService().ListAgents(ctx, filter, cursor, limit)
+func (s *registryServiceImpl) BrowseAgents(ctx context.Context, filter *database.AgentFilter, cursor string, limit int) ([]*models.AgentResponse, string, error) {
+	return s.agentService().BrowseAgents(ctx, filter, cursor, limit)
 }
 
-func (s *registryServiceImpl) GetAgentByName(ctx context.Context, agentName string) (*models.AgentResponse, error) {
-	return s.agentService().GetAgentByName(ctx, agentName)
+func (s *registryServiceImpl) LookupAgent(ctx context.Context, agentName string) (*models.AgentResponse, error) {
+	return s.agentService().LookupAgent(ctx, agentName)
 }
 
-func (s *registryServiceImpl) GetAgentByNameAndVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
-	return s.agentService().GetAgentByNameAndVersion(ctx, agentName, version)
+func (s *registryServiceImpl) LookupAgentVersion(ctx context.Context, agentName, version string) (*models.AgentResponse, error) {
+	return s.agentService().LookupAgentVersion(ctx, agentName, version)
 }
 
-func (s *registryServiceImpl) GetAllVersionsByAgentName(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
-	return s.agentService().GetAllVersionsByAgentName(ctx, agentName)
+func (s *registryServiceImpl) AgentHistory(ctx context.Context, agentName string) ([]*models.AgentResponse, error) {
+	return s.agentService().AgentHistory(ctx, agentName)
 }
 
-func (s *registryServiceImpl) CreateAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
-	return s.agentService().CreateAgent(ctx, req)
+func (s *registryServiceImpl) PublishAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+	return s.agentService().PublishAgent(ctx, req)
 }
 
 func (s *registryServiceImpl) ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error) {
@@ -249,16 +249,16 @@ func (s *registryServiceImpl) ResolveAgentManifestPrompts(ctx context.Context, m
 	return s.agentService().ResolveAgentManifestPrompts(ctx, manifest)
 }
 
-func (s *registryServiceImpl) DeleteAgent(ctx context.Context, agentName, version string) error {
-	return s.agentService().DeleteAgent(ctx, agentName, version)
+func (s *registryServiceImpl) RemoveAgent(ctx context.Context, agentName, version string) error {
+	return s.agentService().RemoveAgent(ctx, agentName, version)
 }
 
-func (s *registryServiceImpl) UpsertAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
-	return s.agentService().UpsertAgentEmbedding(ctx, agentName, version, embedding)
+func (s *registryServiceImpl) SaveAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error {
+	return s.agentService().SaveAgentEmbedding(ctx, agentName, version, embedding)
 }
 
-func (s *registryServiceImpl) GetAgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
-	return s.agentService().GetAgentEmbeddingMetadata(ctx, agentName, version)
+func (s *registryServiceImpl) AgentEmbeddingMetadata(ctx context.Context, agentName, version string) (*database.SemanticEmbeddingMetadata, error) {
+	return s.agentService().AgentEmbeddingMetadata(ctx, agentName, version)
 }
 
 func (s *registryServiceImpl) ListSkills(ctx context.Context, filter *database.SkillFilter, cursor string, limit int) ([]*models.SkillResponse, string, error) {

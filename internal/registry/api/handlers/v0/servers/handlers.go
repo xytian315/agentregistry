@@ -106,7 +106,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc servers
 		if err != nil {
 			return nil, huma.Error400BadRequest("Invalid version encoding", err)
 		}
-		if err := serverSvc.DeleteServer(ctx, serverName, version); err != nil {
+		if err := serverSvc.RemoveServer(ctx, serverName, version); err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Server not found")
 			}
@@ -167,7 +167,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc servers
 			}
 		}
 
-		servers, nextCursor, err := serverSvc.ListServers(ctx, filter, input.Cursor, input.Limit)
+		servers, nextCursor, err := serverSvc.BrowseServers(ctx, filter, input.Cursor, input.Limit)
 		if err != nil {
 			if errors.Is(err, database.ErrInvalidInput) {
 				return nil, huma.Error400BadRequest(err.Error(), err)
@@ -217,7 +217,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc servers
 		}
 
 		if input.All {
-			servers, err := serverSvc.GetAllVersionsByServerName(ctx, serverName)
+			servers, err := serverSvc.ServerHistory(ctx, serverName)
 			if err != nil {
 				switch {
 				case err.Error() == errRecordNotFound, errors.Is(err, database.ErrNotFound):
@@ -250,7 +250,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc servers
 		var serverResponse *apiv0.ServerResponse
 
 		if version == "latest" { //nolint:nestif
-			servers, err := serverSvc.GetAllVersionsByServerName(ctx, serverName)
+			servers, err := serverSvc.ServerHistory(ctx, serverName)
 			if err != nil {
 				if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
 					return nil, huma.Error404NotFound("Server not found")
@@ -278,7 +278,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc servers
 			}
 			serverResponse = latestServer
 		} else {
-			serverResponse, err = serverSvc.GetServerByNameAndVersion(ctx, serverName, version)
+			serverResponse, err = serverSvc.LookupServerVersion(ctx, serverName, version)
 			if err != nil {
 				if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
 					return nil, huma.Error404NotFound("Server not found")
@@ -320,7 +320,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc servers
 			return nil, huma.Error400BadRequest("Invalid server name encoding", err)
 		}
 
-		servers, err := serverSvc.GetAllVersionsByServerName(ctx, serverName)
+		servers, err := serverSvc.ServerHistory(ctx, serverName)
 		if err != nil {
 			if err.Error() == errRecordNotFound || errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("Server not found")
@@ -363,7 +363,7 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc servers
 			return nil, huma.Error400BadRequest("Invalid server name encoding", err)
 		}
 
-		readme, err := serverSvc.GetServerReadmeLatest(ctx, serverName)
+		readme, err := serverSvc.LatestServerReadme(ctx, serverName)
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
 				return nil, huma.Error404NotFound("README not found")
@@ -401,9 +401,9 @@ func RegisterServersEndpoints(api huma.API, pathPrefix string, serverSvc servers
 
 		var readme *database.ServerReadme
 		if version == "latest" {
-			readme, err = serverSvc.GetServerReadmeLatest(ctx, serverName)
+			readme, err = serverSvc.LatestServerReadme(ctx, serverName)
 		} else {
-			readme, err = serverSvc.GetServerReadmeByVersion(ctx, serverName, version)
+			readme, err = serverSvc.ServerReadme(ctx, serverName, version)
 		}
 		if err != nil {
 			if errors.Is(err, database.ErrNotFound) {
@@ -446,7 +446,7 @@ type CreateServerInput struct {
 
 // createServerHandler is the shared handler logic for creating servers
 func createServerHandler(ctx context.Context, input *CreateServerInput, serverSvc serversvc.Registry, deploymentSvc deploymentmeta.Lister) (*types.Response[models.ServerResponse], error) {
-	createdServer, err := serverSvc.CreateServer(ctx, &input.Body)
+	createdServer, err := serverSvc.PublishServer(ctx, &input.Body)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			return nil, huma.Error404NotFound("Not found")

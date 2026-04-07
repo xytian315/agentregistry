@@ -65,7 +65,7 @@ func importServer(
 	srv *apiv0.ServerJSON,
 	readmes ReadmeFile,
 ) {
-	_, err := registry.CreateServer(ctx, srv)
+	_, err := registry.PublishServer(ctx, srv)
 	if err != nil {
 		// If duplicate version and update is enabled, try update path
 		if !errors.Is(err, database.ErrInvalidVersion) {
@@ -87,7 +87,7 @@ func importServer(
 	}
 
 	if len(content) > 0 {
-		if err := registry.StoreServerReadme(ctx, srv.Name, srv.Version, content, contentType); err != nil {
+		if err := registry.SaveServerReadme(ctx, srv.Name, srv.Version, content, contentType); err != nil {
 			slog.Warn("storing README failed", "name", srv.Name, "version", srv.Version, "error", err)
 		}
 		slog.Info("stored README", "name", srv.Name, "version", srv.Version)

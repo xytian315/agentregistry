@@ -167,8 +167,8 @@ func App(_ context.Context, opts ...types.AppOptions) error {
 	deploymentService := deploymentsvc.New(deploymentsvc.Dependencies{
 		Deployments:        db.Deployments(),
 		Providers:          providerService,
-		Servers:            db.Servers(),
-		Agents:             db.Agents(),
+		Servers:            serverService,
+		Agents:             agentService,
 		DeploymentAdapters: deploymentPlatforms,
 	})
 	agentRouteService := agentService

@@ -34,7 +34,7 @@ func TestMCPListServers_HappyPath(t *testing.T) {
 		serverName    = "com.example/echo"
 		serverVersion = "1.0.0"
 	)
-	_, err := serverService.CreateServer(ctx, &apiv0.ServerJSON{
+	_, err := serverService.PublishServer(ctx, &apiv0.ServerJSON{
 		Schema:      model.CurrentSchemaURL,
 		Name:        serverName,
 		Description: "Echo test server",
