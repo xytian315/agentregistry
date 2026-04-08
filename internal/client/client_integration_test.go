@@ -76,10 +76,10 @@ type fakeClientRegistry struct {
 	UpdateProviderFn  func(ctx context.Context, providerID string, in *models.UpdateProviderInput) (*models.Provider, error)
 	DeleteProviderFn  func(ctx context.Context, providerID string) error
 
-	GetDeploymentsFn    func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
-	GetDeploymentByIDFn func(ctx context.Context, id string) (*models.Deployment, error)
-	DeployServerFn      func(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
-	DeployAgentFn       func(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	GetDeploymentsFn       func(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error)
+	GetDeploymentByIDFn    func(ctx context.Context, id string) (*models.Deployment, error)
+	DeployServerFn         func(ctx context.Context, serverName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
+	DeployAgentFn          func(ctx context.Context, agentName, version string, config map[string]string, preferRemote bool, providerID string) (*models.Deployment, error)
 	RemoveDeploymentByIDFn func(ctx context.Context, id string) error
 	CreateDeploymentFn     func(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
 	GetDeploymentLogsFn    func(ctx context.Context, deployment *models.Deployment) ([]string, error)
@@ -136,6 +136,7 @@ func (f *fakeClientRegistry) GetServerVersions(ctx context.Context, serverName s
 	}
 	return f.ServerList, nil
 }
+
 // CreateServer implements database.ServerStore — ignores extensions, delegates to CreateServerFn.
 func (f *fakeClientRegistry) CreateServer(ctx context.Context, req *apiv0.ServerJSON, _ *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
 	if f.CreateServerFn != nil {
@@ -241,6 +242,7 @@ func (f *fakeClientRegistry) GetAgentVersions(ctx context.Context, agentName str
 	}
 	return f.AgentList, nil
 }
+
 // CreateAgent implements database.AgentStore — ignores extensions, delegates to CreateAgentFn.
 func (f *fakeClientRegistry) CreateAgent(ctx context.Context, req *models.AgentJSON, _ *models.AgentRegistryExtensions) (*models.AgentResponse, error) {
 	if f.CreateAgentFn != nil {
@@ -314,6 +316,7 @@ func (f *fakeClientRegistry) GetSkillVersions(ctx context.Context, skillName str
 	}
 	return f.SkillList, nil
 }
+
 // CreateSkill implements database.SkillStore — ignores extensions, delegates to CreateSkillFn.
 func (f *fakeClientRegistry) CreateSkill(ctx context.Context, req *models.SkillJSON, _ *models.SkillRegistryExtensions) (*models.SkillResponse, error) {
 	if f.CreateSkillFn != nil {
@@ -381,6 +384,7 @@ func (f *fakeClientRegistry) GetPromptVersions(ctx context.Context, promptName s
 	}
 	return f.PromptList, nil
 }
+
 // CreatePrompt implements database.PromptStore — ignores extensions, delegates to CreatePromptFn.
 func (f *fakeClientRegistry) CreatePrompt(ctx context.Context, req *models.PromptJSON, _ *models.PromptRegistryExtensions) (*models.PromptResponse, error) {
 	if f.CreatePromptFn != nil {
@@ -534,18 +538,12 @@ func (a *fakeClientDeploymentAdapter) Deploy(ctx context.Context, deployment *mo
 	if deployment == nil {
 		return nil, database.ErrInvalidInput
 	}
+	fn := a.registry.DeployServerFn
 	if deployment.ResourceType == "agent" {
-		if a.registry.DeployAgentFn != nil {
-			result, err := a.registry.DeployAgentFn(ctx, deployment.ServerName, deployment.Version, deployment.Env, deployment.PreferRemote, deployment.ProviderID)
-			if err != nil {
-				return nil, err
-			}
-			if result != nil && result.Status != "" {
-				return &models.DeploymentActionResult{Status: result.Status}, nil
-			}
-		}
-	} else if a.registry.DeployServerFn != nil {
-		result, err := a.registry.DeployServerFn(ctx, deployment.ServerName, deployment.Version, deployment.Env, deployment.PreferRemote, deployment.ProviderID)
+		fn = a.registry.DeployAgentFn
+	}
+	if fn != nil {
+		result, err := fn(ctx, deployment.ServerName, deployment.Version, deployment.Env, deployment.PreferRemote, deployment.ProviderID)
 		if err != nil {
 			return nil, err
 		}
@@ -1104,10 +1102,10 @@ func newClientWithInProcessServer(t *testing.T, fake *fakeClientRegistry) (*Clie
 	router.NewHumaAPI(
 		cfg,
 		router.RegistryServices{
-			Server:  serversvc.New(serversvc.Dependencies{StoreDB: fake, Config: cfg}),
-			Agent:   agentsvc.New(agentsvc.Dependencies{StoreDB: fake, Config: cfg}),
-			Skill:   skillsvc.New(skillsvc.Dependencies{StoreDB: fake}),
-			Prompt:  promptsvc.New(promptsvc.Dependencies{StoreDB: fake}),
+			Server:   serversvc.New(serversvc.Dependencies{StoreDB: fake, Config: cfg}),
+			Agent:    agentsvc.New(agentsvc.Dependencies{StoreDB: fake, Config: cfg}),
+			Skill:    skillsvc.New(skillsvc.Dependencies{StoreDB: fake}),
+			Prompt:   promptsvc.New(promptsvc.Dependencies{StoreDB: fake}),
 			Provider: providerRegistry,
 			Deployment: deploymentsvc.New(deploymentsvc.Dependencies{
 				StoreDB:            fake,

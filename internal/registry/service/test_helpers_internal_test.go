@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
@@ -99,17 +98,6 @@ func (s *registryServiceImpl) readStores() storeBundle {
 		stores.deployments = s.deploymentRepo
 	}
 	return stores
-}
-
-func (s *registryServiceImpl) inTransaction(ctx context.Context, fn func(context.Context, storeBundle) error) error {
-	storeDB := s.serviceDatabase()
-	if storeDB == nil {
-		return errors.New("store is not configured")
-	}
-
-	return storeDB.InTransaction(ctx, func(txCtx context.Context, scope database.Scope) error {
-		return fn(txCtx, bundleFromScope(scope))
-	})
 }
 
 func (s *registryServiceImpl) serverService() serversvc.Registry {
@@ -322,7 +310,6 @@ func (s *registryServiceImpl) DeleteProvider(ctx context.Context, providerID, pl
 	return s.providerService().DeleteProvider(ctx, providerID, platformHint)
 }
 
-
 func (s *registryServiceImpl) ListDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 	return s.deploymentService().ListDeployments(ctx, filter)
 }
@@ -358,4 +345,3 @@ func (s *registryServiceImpl) GetDeploymentLogs(ctx context.Context, deployment 
 func (s *registryServiceImpl) CancelDeployment(ctx context.Context, deployment *models.Deployment) error {
 	return s.deploymentService().CancelDeployment(ctx, deployment)
 }
-
