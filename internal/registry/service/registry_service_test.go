@@ -12,7 +12,9 @@ import (
 	"github.com/agentregistry-dev/agentregistry/internal/registry/config"
 	internaldb "github.com/agentregistry-dev/agentregistry/internal/registry/database"
 	api "github.com/agentregistry-dev/agentregistry/internal/registry/platforms/types"
+	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
+	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
 	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	"github.com/agentregistry-dev/agentregistry/pkg/registry/auth"
@@ -24,158 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type splitDomainViewMockDB struct {
-	database.Store
-	listServersFn     func(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)
-	getProviderByIDFn func(ctx context.Context, providerID string) (*models.Provider, error)
-}
-
-func (m *splitDomainViewMockDB) Servers() database.ServerStore {
-	return m
-}
-
-func (m *splitDomainViewMockDB) Providers() database.ProviderStore {
-	return m
-}
-
 func newRegistryTestServerService(storeDB database.Store, cfg *config.Config) serversvc.Registry {
 	return serversvc.New(serversvc.Dependencies{StoreDB: storeDB, Config: cfg})
-}
-
-func (m *splitDomainViewMockDB) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
-	return m.listServersFn(ctx, filter, cursor, limit)
-}
-
-func (m *splitDomainViewMockDB) DeleteServer(context.Context, string, string) error {
-	return nil
-}
-
-func (m *splitDomainViewMockDB) CreateServer(context.Context, *apiv0.ServerJSON, *apiv0.RegistryExtensions) (*apiv0.ServerResponse, error) {
-	return nil, database.ErrInvalidInput
-}
-
-func (m *splitDomainViewMockDB) UpdateServer(context.Context, string, string, *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
-	return nil, database.ErrInvalidInput
-}
-
-func (m *splitDomainViewMockDB) SetServerStatus(context.Context, string, string, string) (*apiv0.ServerResponse, error) {
-	return nil, database.ErrInvalidInput
-}
-
-func (m *splitDomainViewMockDB) GetServer(context.Context, string) (*apiv0.ServerResponse, error) {
-	return nil, database.ErrNotFound
-}
-
-func (m *splitDomainViewMockDB) GetServerVersion(context.Context, string, string) (*apiv0.ServerResponse, error) {
-	return nil, database.ErrNotFound
-}
-
-func (m *splitDomainViewMockDB) GetServerVersions(context.Context, string) ([]*apiv0.ServerResponse, error) {
-	return nil, database.ErrNotFound
-}
-
-func (m *splitDomainViewMockDB) GetLatestServer(context.Context, string) (*apiv0.ServerResponse, error) {
-	return nil, database.ErrNotFound
-}
-
-func (m *splitDomainViewMockDB) CountServerVersions(context.Context, string) (int, error) {
-	return 0, nil
-}
-
-func (m *splitDomainViewMockDB) CheckVersionExists(context.Context, string, string) (bool, error) {
-	return false, nil
-}
-
-func (m *splitDomainViewMockDB) UnmarkAsLatest(context.Context, string) error {
-	return nil
-}
-
-func (m *splitDomainViewMockDB) AcquireServerCreateLock(context.Context, string) error {
-	return nil
-}
-
-func (m *splitDomainViewMockDB) SetServerEmbedding(context.Context, string, string, *database.SemanticEmbedding) error {
-	return nil
-}
-
-func (m *splitDomainViewMockDB) GetServerEmbeddingMetadata(context.Context, string, string) (*database.SemanticEmbeddingMetadata, error) {
-	return nil, database.ErrNotFound
-}
-
-func (m *splitDomainViewMockDB) UpsertServerReadme(context.Context, *database.ServerReadme) error {
-	return nil
-}
-
-func (m *splitDomainViewMockDB) GetServerReadme(context.Context, string, string) (*database.ServerReadme, error) {
-	return nil, database.ErrNotFound
-}
-
-func (m *splitDomainViewMockDB) GetLatestServerReadme(context.Context, string) (*database.ServerReadme, error) {
-	return nil, database.ErrNotFound
-}
-
-func (m *splitDomainViewMockDB) GetProvider(ctx context.Context, providerID string) (*models.Provider, error) {
-	return m.getProviderByIDFn(ctx, providerID)
-}
-
-func (m *splitDomainViewMockDB) CreateProvider(context.Context, *models.CreateProviderInput) (*models.Provider, error) {
-	return nil, database.ErrInvalidInput
-}
-
-func (m *splitDomainViewMockDB) ListProviders(context.Context, *string) ([]*models.Provider, error) {
-	return nil, nil
-}
-
-func (m *splitDomainViewMockDB) UpdateProvider(context.Context, string, *models.UpdateProviderInput) (*models.Provider, error) {
-	return nil, database.ErrInvalidInput
-}
-
-func (m *splitDomainViewMockDB) DeleteProvider(context.Context, string) error {
-	return nil
-}
-
-func TestDomainServiceViewsShareRegistryState(t *testing.T) {
-	ctx := context.Background()
-	serverCalls := 0
-	providerCalls := 0
-	adapter := &testDeploymentAdapter{}
-
-	mockDB := &splitDomainViewMockDB{
-		listServersFn: func(_ context.Context, _ *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
-			serverCalls++
-			require.Empty(t, cursor)
-			require.Equal(t, 1, limit)
-			return []*apiv0.ServerResponse{{
-				Server: apiv0.ServerJSON{Name: "com.example/weather", Version: "1.0.0"},
-			}}, "", nil
-		},
-		getProviderByIDFn: func(_ context.Context, providerID string) (*models.Provider, error) {
-			providerCalls++
-			return &models.Provider{ID: providerID, Platform: "local"}, nil
-		},
-	}
-
-	svc := &registryServiceImpl{
-		storeDB: mockDB,
-		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
-			"local": adapter,
-		},
-	}
-
-	servers, _, err := svc.serverService().ListServers(ctx, nil, "", 1)
-	require.NoError(t, err)
-	require.Len(t, servers, 1)
-	assert.Equal(t, "com.example/weather", servers[0].Server.Name)
-
-	provider, err := svc.GetProvider(ctx, "provider-1")
-	require.NoError(t, err)
-	assert.Equal(t, "local", provider.Platform)
-
-	resolved, err := svc.deploymentService().resolveDeploymentAdapterByProviderID(ctx, "provider-1")
-	require.NoError(t, err)
-	assert.Same(t, adapter, resolved)
-	assert.Equal(t, 1, serverCalls)
-	assert.Equal(t, 2, providerCalls)
 }
 
 func TestValidateNoDuplicateRemoteURLs(t *testing.T) {
@@ -1174,9 +1026,13 @@ func TestCreateManagedDeploymentRecord_UsesDeployingStatus(t *testing.T) {
 		},
 	}
 
-	svc := &registryServiceImpl{storeDB: mockDB}
+	svc := newDeploymentInternals(deploymentsvc.Dependencies{
+		Deployments: mockDB.Deployments(),
+		Servers:     serversvc.New(serversvc.Dependencies{Servers: mockDB.Servers(), Tx: mockDB}),
+		Agents:      agentsvc.New(agentsvc.Dependencies{Agents: mockDB.Agents(), Tx: mockDB}),
+	})
 
-	created, err := svc.createManagedDeploymentRecord(ctx, &models.Deployment{
+	created, err := svc.CreateManagedDeploymentRecord(ctx, &models.Deployment{
 		ID:           "dep-create-1",
 		ServerName:   "com.example/weather",
 		Version:      "1.0.0",
@@ -1208,8 +1064,8 @@ func TestApplyDeploymentActionResult_UsesSystemContext(t *testing.T) {
 		},
 	}
 
-	svc := &registryServiceImpl{storeDB: mockDB}
-	err := svc.applyDeploymentActionResult(ctx, "dep-1", &models.DeploymentActionResult{Status: "deployed"})
+	svc := newDeploymentInternals(deploymentsvc.Dependencies{Deployments: mockDB.Deployments()})
+	err := svc.ApplyDeploymentActionResult(ctx, "dep-1", &models.DeploymentActionResult{Status: "deployed"})
 	require.NoError(t, err)
 }
 
@@ -1230,8 +1086,8 @@ func TestApplyFailedDeploymentAction_UsesSystemContext(t *testing.T) {
 		},
 	}
 
-	svc := &registryServiceImpl{storeDB: mockDB}
-	err := svc.applyFailedDeploymentAction(ctx, "dep-2", fmt.Errorf("boom"), nil)
+	svc := newDeploymentInternals(deploymentsvc.Dependencies{Deployments: mockDB.Deployments()})
+	err := svc.ApplyFailedDeploymentAction(ctx, "dep-2", fmt.Errorf("boom"), nil)
 	require.NoError(t, err)
 }
 
@@ -1490,6 +1346,32 @@ func (m *deploymentMockDB) DeleteDeployment(ctx context.Context, id string) erro
 	return m.removeDeploymentByIdFn(ctx, id)
 }
 
+// deploymentInternals is a test-only interface that exposes unexported-via-interface
+// methods on the deployment service's concrete type, used by tests that need to
+// exercise internal deployment logic directly.
+type deploymentInternals interface {
+	deploymentsvc.Registry
+	ResolveDeploymentAdapter(platform string) (registrytypes.DeploymentPlatformAdapter, error)
+	CleanupExistingDeployment(ctx context.Context, resourceName, version, resourceType string) error
+	CreateManagedDeploymentRecord(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
+	ApplyDeploymentActionResult(ctx context.Context, deploymentID string, result *models.DeploymentActionResult) error
+	ApplyFailedDeploymentAction(ctx context.Context, deploymentID string, deployErr error, result *models.DeploymentActionResult) error
+}
+
+// newDeploymentInternals constructs a deployment service from the given Dependencies,
+// then asserts that its concrete type satisfies deploymentInternals.
+// Callers must supply explicit Deployments/Providers/Servers/Agents rather than relying
+// on StoreDB auto-expansion, since the mock DBs used in tests embed a nil database.Store
+// and would panic if their unimplemented Scope methods were called.
+func newDeploymentInternals(deps deploymentsvc.Dependencies) deploymentInternals {
+	svc := deploymentsvc.New(deps)
+	internals, ok := svc.(deploymentInternals)
+	if !ok {
+		panic("deployment service does not implement deploymentInternals")
+	}
+	return internals
+}
+
 // Helper functions
 func stringPtr(s string) *string {
 	return &s
@@ -1507,11 +1389,11 @@ func TestIsUnsupportedDeploymentPlatformError(t *testing.T) {
 }
 
 func TestResolveDeploymentAdapter_UnsupportedPlatformReturnsTypedError(t *testing.T) {
-	svc := &registryServiceImpl{
-		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{},
-	}
+	svc := newDeploymentInternals(deploymentsvc.Dependencies{
+		DeploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{},
+	})
 
-	_, err := svc.resolveDeploymentAdapter("unknown-platform")
+	_, err := svc.ResolveDeploymentAdapter("unknown-platform")
 	require.Error(t, err)
 	assert.True(t, deploymentsvc.IsUnsupportedDeploymentPlatformError(err))
 	assert.ErrorIs(t, err, database.ErrInvalidInput)
@@ -1611,14 +1493,15 @@ func TestCleanupExistingDeployment_UsesAdapterStaleCleanerWhenAvailable(t *testi
 		},
 	}
 
-	svc := &registryServiceImpl{
-		storeDB: mockDB,
-		deploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
+	svc := newDeploymentInternals(deploymentsvc.Dependencies{
+		Deployments: mockDB.Deployments(),
+		Providers:   providersvc.New(providersvc.Dependencies{Providers: mockDB.Providers()}),
+		DeploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
 			"local": adapter,
 		},
-	}
+	})
 
-	err := svc.cleanupExistingDeployment(ctx, "com.example/test", "1.0.0", "mcp")
+	err := svc.CleanupExistingDeployment(ctx, "com.example/test", "1.0.0", "mcp")
 	require.NoError(t, err)
 	assert.True(t, cleanupCalled)
 	assert.True(t, removeCalled, "db record should still be removed after adapter stale cleanup")

@@ -151,38 +151,15 @@ func (s *registryServiceImpl) providerService() providersvc.Registry {
 	return providersvc.New(providersvc.Dependencies{Providers: stores.providers})
 }
 
-type deploymentInternals interface {
-	deploymentsvc.Registry
-	ResolveDeploymentAdapter(platform string) (registrytypes.DeploymentPlatformAdapter, error)
-	ResolveDeploymentAdapterByProviderID(ctx context.Context, providerID string) (registrytypes.DeploymentPlatformAdapter, error)
-	CleanupExistingDeployment(ctx context.Context, resourceName, version, resourceType string) error
-	CreateManagedDeploymentRecord(ctx context.Context, req *models.Deployment) (*models.Deployment, error)
-	ApplyDeploymentActionResult(ctx context.Context, deploymentID string, result *models.DeploymentActionResult) error
-	ApplyFailedDeploymentAction(ctx context.Context, deploymentID string, deployErr error, result *models.DeploymentActionResult) error
-}
-
-type deploymentServiceImpl struct {
-	deploymentInternals
-}
-
-func (s *deploymentServiceImpl) resolveDeploymentAdapterByProviderID(ctx context.Context, providerID string) (registrytypes.DeploymentPlatformAdapter, error) {
-	return s.ResolveDeploymentAdapterByProviderID(ctx, providerID)
-}
-
-func (s *registryServiceImpl) deploymentService() *deploymentServiceImpl {
+func (s *registryServiceImpl) deploymentService() deploymentsvc.Registry {
 	stores := s.readStores()
-	deploymentSvc := deploymentsvc.New(deploymentsvc.Dependencies{
+	return deploymentsvc.New(deploymentsvc.Dependencies{
 		Deployments:        stores.deployments,
 		Providers:          providersvc.New(providersvc.Dependencies{Providers: stores.providers}),
 		Servers:            s.serverService(),
 		Agents:             s.agentService(),
 		DeploymentAdapters: s.deploymentAdapters,
 	})
-	internals, ok := deploymentSvc.(deploymentInternals)
-	if !ok {
-		panic("deployment service does not implement deploymentInternals")
-	}
-	return &deploymentServiceImpl{deploymentInternals: internals}
 }
 
 func (s *registryServiceImpl) ListServers(ctx context.Context, filter *database.ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error) {
@@ -382,22 +359,3 @@ func (s *registryServiceImpl) CancelDeployment(ctx context.Context, deployment *
 	return s.deploymentService().CancelDeployment(ctx, deployment)
 }
 
-func (s *registryServiceImpl) resolveDeploymentAdapter(platform string) (registrytypes.DeploymentPlatformAdapter, error) {
-	return s.deploymentService().ResolveDeploymentAdapter(platform)
-}
-
-func (s *registryServiceImpl) cleanupExistingDeployment(ctx context.Context, resourceName, version, resourceType string) error {
-	return s.deploymentService().CleanupExistingDeployment(ctx, resourceName, version, resourceType)
-}
-
-func (s *registryServiceImpl) createManagedDeploymentRecord(ctx context.Context, req *models.Deployment) (*models.Deployment, error) {
-	return s.deploymentService().CreateManagedDeploymentRecord(ctx, req)
-}
-
-func (s *registryServiceImpl) applyDeploymentActionResult(ctx context.Context, deploymentID string, result *models.DeploymentActionResult) error {
-	return s.deploymentService().ApplyDeploymentActionResult(ctx, deploymentID, result)
-}
-
-func (s *registryServiceImpl) applyFailedDeploymentAction(ctx context.Context, deploymentID string, deployErr error, result *models.DeploymentActionResult) error {
-	return s.deploymentService().ApplyFailedDeploymentAction(ctx, deploymentID, deployErr, result)
-}
