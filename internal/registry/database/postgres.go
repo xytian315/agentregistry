@@ -23,7 +23,7 @@ type PostgreSQL struct {
 }
 
 type repositoryBase struct {
-	executor Executor
+	executor executor
 	authz    auth.Authorizer
 }
 
@@ -38,98 +38,15 @@ type postgresScope struct {
 
 var _ database.Scope = (*postgresScope)(nil)
 
-type commandTagAdapter struct {
-	tag pgconn.CommandTag
+// executor is the internal query surface used by repository methods.
+// Both *pgxpool.Pool and pgx.Tx satisfy this interface natively.
+type executor interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-func (c commandTagAdapter) RowsAffected() int64 {
-	return c.tag.RowsAffected()
-}
-
-type rowsAdapter struct {
-	rows pgx.Rows
-}
-
-func (r rowsAdapter) Close() {
-	r.rows.Close()
-}
-
-func (r rowsAdapter) Err() error {
-	return r.rows.Err()
-}
-
-func (r rowsAdapter) Next() bool {
-	return r.rows.Next()
-}
-
-func (r rowsAdapter) Scan(dest ...any) error {
-	return r.rows.Scan(dest...)
-}
-
-type rowAdapter struct {
-	row pgx.Row
-}
-
-func (r rowAdapter) Scan(dest ...any) error {
-	return r.row.Scan(dest...)
-}
-
-type transactionAdapter struct {
-	tx pgx.Tx
-}
-
-func (t transactionAdapter) Exec(ctx context.Context, sql string, arguments ...any) (database.CommandTag, error) {
-	result, err := t.tx.Exec(ctx, sql, arguments...)
-	if err != nil {
-		return nil, err
-	}
-	return commandTagAdapter{tag: result}, nil
-}
-
-func (t transactionAdapter) Query(ctx context.Context, sql string, args ...any) (database.Rows, error) {
-	rows, err := t.tx.Query(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-	return rowsAdapter{rows: rows}, nil
-}
-
-func (t transactionAdapter) QueryRow(ctx context.Context, sql string, args ...any) database.Row {
-	return rowAdapter{row: t.tx.QueryRow(ctx, sql, args...)}
-}
-
-type poolExecutor struct {
-	pool *pgxpool.Pool
-}
-
-func (p poolExecutor) Exec(ctx context.Context, sql string, arguments ...any) (database.CommandTag, error) {
-	result, err := p.pool.Exec(ctx, sql, arguments...)
-	if err != nil {
-		return nil, err
-	}
-	return commandTagAdapter{tag: result}, nil
-}
-
-func (p poolExecutor) Query(ctx context.Context, sql string, args ...any) (database.Rows, error) {
-	rows, err := p.pool.Query(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-	return rowsAdapter{rows: rows}, nil
-}
-
-func (p poolExecutor) QueryRow(ctx context.Context, sql string, args ...any) database.Row {
-	return rowAdapter{row: p.pool.QueryRow(ctx, sql, args...)}
-}
-
-// Executor is an internal query surface used by repository methods.
-type Executor interface {
-	Exec(ctx context.Context, sql string, arguments ...any) (database.CommandTag, error)
-	Query(ctx context.Context, sql string, args ...any) (database.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) database.Row
-}
-
-func newPostgresScope(executor Executor, authz auth.Authorizer, tx pgx.Tx) *postgresScope {
+func newPostgresScope(executor executor, authz auth.Authorizer, tx pgx.Tx) *postgresScope {
 	base := repositoryBase{executor: executor, authz: authz}
 	return &postgresScope{
 		servers:     &serverStore{repositoryBase: base, tx: tx},
@@ -213,7 +130,7 @@ func NewPostgreSQL(ctx context.Context, connectionURI string, authz auth.Authori
 }
 
 func (db *PostgreSQL) scope() *postgresScope {
-	return newPostgresScope(poolExecutor{pool: db.pool}, db.authz, nil)
+	return newPostgresScope(db.pool, db.authz, nil)
 }
 
 func (db *PostgreSQL) Servers() database.ServerStore {
@@ -259,7 +176,7 @@ func (db *PostgreSQL) InTransaction(ctx context.Context, fn func(ctx context.Con
 		}
 	}()
 
-	txScope := newPostgresScope(transactionAdapter{tx: tx}, db.authz, tx)
+	txScope := newPostgresScope(tx, db.authz, tx)
 	if err := fn(ctx, txScope); err != nil {
 		return err
 	}

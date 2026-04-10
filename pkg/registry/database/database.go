@@ -105,24 +105,6 @@ type SemanticSearchOptions struct {
 	HybridSubstring *string
 }
 
-// CommandTag reports metadata about an executed statement.
-type CommandTag interface {
-	RowsAffected() int64
-}
-
-// Rows defines the row-iteration surface repository methods need.
-type Rows interface {
-	Close()
-	Err() error
-	Next() bool
-	Scan(dest ...any) error
-}
-
-// Row defines the single-row scan surface repository methods need.
-type Row interface {
-	Scan(dest ...any) error
-}
-
 // ServerReader is the read-only subset of ServerStore exposed through service Registry interfaces.
 type ServerReader interface {
 	ListServers(ctx context.Context, filter *ServerFilter, cursor string, limit int) ([]*apiv0.ServerResponse, string, error)

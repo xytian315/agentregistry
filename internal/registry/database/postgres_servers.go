@@ -1003,7 +1003,7 @@ func (s *serverStore) GetLatestServerReadme(ctx context.Context, serverName stri
 	return scanServerReadme(row)
 }
 
-func scanServerReadme(row database.Row) (*database.ServerReadme, error) {
+func scanServerReadme(row pgx.Row) (*database.ServerReadme, error) {
 	var readme database.ServerReadme
 	if err := row.Scan(
 		&readme.ServerName,

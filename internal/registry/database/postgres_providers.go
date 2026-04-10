@@ -15,7 +15,7 @@ import (
 )
 
 type providerStore struct {
-	executor Executor
+	executor executor
 }
 
 var _ database.ProviderStore = (*providerStore)(nil)
