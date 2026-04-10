@@ -27,6 +27,7 @@ func (h *AgentHandler) Apply(c *client.Client, r *scheme.Resource, overwrite boo
 		return err
 	}
 
+	var deleted bool
 	if overwrite {
 		exists, err := c.GetAgentByNameAndVersion(agentJSON.Name, agentJSON.Version)
 		if err != nil {
@@ -36,11 +37,17 @@ func (h *AgentHandler) Apply(c *client.Client, r *scheme.Resource, overwrite boo
 			if err := c.DeleteAgent(agentJSON.Name, agentJSON.Version); err != nil {
 				return fmt.Errorf("deleting existing agent for overwrite: %w", err)
 			}
+			deleted = true
 		}
 	}
 
-	_, err = c.CreateAgent(agentJSON)
-	return err
+	if _, err = c.CreateAgent(agentJSON); err != nil {
+		if deleted {
+			return fmt.Errorf("agent/%s (%s) was deleted but re-create failed — resource no longer exists: %w", agentJSON.Name, agentJSON.Version, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (h *AgentHandler) List(c *client.Client) ([]any, error) {
@@ -93,6 +100,8 @@ func (h *AgentHandler) ToResource(item any) *scheme.Resource {
 	delete(spec, "name")
 	delete(spec, "version")
 	delete(spec, "updatedAt")
+	delete(spec, "status")
+	delete(spec, "publishedAt")
 
 	meta := scheme.Metadata{
 		Name:    a.Agent.Name,

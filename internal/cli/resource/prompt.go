@@ -25,6 +25,7 @@ func (h *PromptHandler) Apply(c *client.Client, r *scheme.Resource, overwrite bo
 	if err != nil {
 		return err
 	}
+	var deleted bool
 	if overwrite {
 		exists, err := c.GetPromptByNameAndVersion(promptJSON.Name, promptJSON.Version)
 		if err != nil {
@@ -34,10 +35,16 @@ func (h *PromptHandler) Apply(c *client.Client, r *scheme.Resource, overwrite bo
 			if err := c.DeletePrompt(promptJSON.Name, promptJSON.Version); err != nil {
 				return fmt.Errorf("deleting existing prompt for overwrite: %w", err)
 			}
+			deleted = true
 		}
 	}
-	_, err = c.CreatePrompt(promptJSON)
-	return err
+	if _, err = c.CreatePrompt(promptJSON); err != nil {
+		if deleted {
+			return fmt.Errorf("prompt/%s (%s) was deleted but re-create failed — resource no longer exists: %w", promptJSON.Name, promptJSON.Version, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (h *PromptHandler) List(c *client.Client) ([]any, error) {
@@ -87,6 +94,8 @@ func (h *PromptHandler) ToResource(item any) *scheme.Resource {
 	delete(spec, "name")
 	delete(spec, "version")
 	delete(spec, "updatedAt")
+	delete(spec, "status")
+	delete(spec, "publishedAt")
 
 	meta := scheme.Metadata{Name: p.Prompt.Name, Version: p.Prompt.Version}
 	if p.Meta.Official != nil {

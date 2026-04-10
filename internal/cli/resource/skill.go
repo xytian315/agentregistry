@@ -25,6 +25,7 @@ func (h *SkillHandler) Apply(c *client.Client, r *scheme.Resource, overwrite boo
 	if err != nil {
 		return err
 	}
+	var deleted bool
 	if overwrite {
 		exists, err := c.GetSkillByNameAndVersion(skillJSON.Name, skillJSON.Version)
 		if err != nil {
@@ -34,10 +35,16 @@ func (h *SkillHandler) Apply(c *client.Client, r *scheme.Resource, overwrite boo
 			if err := c.DeleteSkill(skillJSON.Name, skillJSON.Version); err != nil {
 				return fmt.Errorf("deleting existing skill for overwrite: %w", err)
 			}
+			deleted = true
 		}
 	}
-	_, err = c.CreateSkill(skillJSON)
-	return err
+	if _, err = c.CreateSkill(skillJSON); err != nil {
+		if deleted {
+			return fmt.Errorf("skill/%s (%s) was deleted but re-create failed — resource no longer exists: %w", skillJSON.Name, skillJSON.Version, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (h *SkillHandler) List(c *client.Client) ([]any, error) {
@@ -88,6 +95,8 @@ func (h *SkillHandler) ToResource(item any) *scheme.Resource {
 	delete(spec, "name")
 	delete(spec, "version")
 	delete(spec, "updatedAt")
+	delete(spec, "status")
+	delete(spec, "publishedAt")
 
 	meta := scheme.Metadata{Name: s.Skill.Name, Version: s.Skill.Version}
 	if s.Meta.Official != nil {

@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -100,7 +101,12 @@ func resolveRegistryURL() (string, func()) {
 // can reach it when the MetalLB IP is not routable from the host (macOS + Docker Desktop).
 // Returns the localhost URL once the forward is ready, and a stop function.
 func startPortForward(servicePort int) (string, func()) {
-	const localPort = 18121 // arbitrary local port; must not conflict with other services
+	localPort := 18121 // default; override with E2E_LOCAL_PORT env var
+	if v := os.Getenv("E2E_LOCAL_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			localPort = p
+		}
+	}
 	const pollInterval = 500 * time.Millisecond
 	const readyTimeout = 30 * time.Second
 

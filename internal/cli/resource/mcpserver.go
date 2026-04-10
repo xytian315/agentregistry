@@ -28,6 +28,7 @@ func (h *MCPServerHandler) Apply(c *client.Client, r *scheme.Resource, overwrite
 		return err
 	}
 
+	var deleted bool
 	if overwrite {
 		exists, err := c.GetServerByNameAndVersion(serverJSON.Name, serverJSON.Version)
 		if err != nil {
@@ -37,11 +38,17 @@ func (h *MCPServerHandler) Apply(c *client.Client, r *scheme.Resource, overwrite
 			if err := c.DeleteMCPServer(serverJSON.Name, serverJSON.Version); err != nil {
 				return fmt.Errorf("deleting existing server for overwrite: %w", err)
 			}
+			deleted = true
 		}
 	}
 
-	_, err = c.CreateMCPServer(serverJSON)
-	return err
+	if _, err = c.CreateMCPServer(serverJSON); err != nil {
+		if deleted {
+			return fmt.Errorf("mcpserver/%s (%s) was deleted but re-create failed — resource no longer exists: %w", serverJSON.Name, serverJSON.Version, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (h *MCPServerHandler) List(c *client.Client) ([]any, error) {
@@ -91,6 +98,8 @@ func (h *MCPServerHandler) ToResource(item any) *scheme.Resource {
 	delete(spec, "name")
 	delete(spec, "version")
 	delete(spec, "updatedAt")
+	delete(spec, "status")
+	delete(spec, "publishedAt")
 
 	meta := scheme.Metadata{
 		Name:    s.Server.Name,

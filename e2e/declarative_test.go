@@ -96,7 +96,7 @@ spec:
   description: "E2E declarative apply test agent"
   language: python
   framework: adk
-  modelProvider: google
+  modelProvider: gemini
   modelName: gemini-2.0-flash
 `, agentName, version)
 
@@ -224,7 +224,7 @@ spec:
   description: "Multi-doc test agent"
   language: python
   framework: adk
-  modelProvider: google
+  modelProvider: gemini
   modelName: gemini-2.0-flash
 `, serverName, version, agentName, version)
 
@@ -258,7 +258,7 @@ spec:
   description: "Dry-run test agent"
   language: python
   framework: adk
-  modelProvider: google
+  modelProvider: gemini
   modelName: gemini-2.0-flash
 `, agentName, version)
 
