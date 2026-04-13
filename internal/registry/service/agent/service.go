@@ -116,23 +116,15 @@ func (s *registry) ApplyAgent(ctx context.Context, req *models.AgentJSON) (*mode
 			// Run the same remote URL conflict check as the create path: a
 			// different agent must not already own any of the requested remotes.
 			for _, remote := range req.Remotes {
-				remoteURL := remote.URL
-				filter := &database.AgentFilter{RemoteURL: &remoteURL}
-				cursor := ""
-				for {
-					existing, nextCursor, err := agents.ListAgents(txCtx, filter, cursor, 1000)
-					if err != nil {
-						return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
+				filter := &database.AgentFilter{RemoteURL: &remote.URL}
+				existing, _, err := agents.ListAgents(txCtx, filter, "", 1000)
+				if err != nil {
+					return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
+				}
+				for _, existingAgent := range existing {
+					if existingAgent.Agent.Name != req.Name {
+						return nil, fmt.Errorf("remote URL %s is already used by agent %s", remote.URL, existingAgent.Agent.Name)
 					}
-					for _, existingAgent := range existing {
-						if existingAgent.Agent.Name != req.Name {
-							return nil, fmt.Errorf("remote URL %s is already used by agent %s", remoteURL, existingAgent.Agent.Name)
-						}
-					}
-					if nextCursor == "" {
-						break
-					}
-					cursor = nextCursor
 				}
 			}
 			result, err := agents.UpdateAgent(txCtx, req.Name, req.Version, req)
@@ -239,23 +231,15 @@ func (s *registry) createAgentInTransaction(ctx context.Context, agents database
 	agentJSON := *req
 
 	for _, remote := range agentJSON.Remotes {
-		remoteURL := remote.URL
-		filter := &database.AgentFilter{RemoteURL: &remoteURL}
-		cursor := ""
-		for {
-			existing, nextCursor, err := agents.ListAgents(ctx, filter, cursor, 1000)
-			if err != nil {
-				return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
+		filter := &database.AgentFilter{RemoteURL: &remote.URL}
+		existing, _, err := agents.ListAgents(ctx, filter, "", 1000)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
+		}
+		for _, existingAgent := range existing {
+			if existingAgent.Agent.Name != agentJSON.Name {
+				return nil, fmt.Errorf("remote URL %s is already used by agent %s", remote.URL, existingAgent.Agent.Name)
 			}
-			for _, existingAgent := range existing {
-				if existingAgent.Agent.Name != agentJSON.Name {
-					return nil, fmt.Errorf("remote URL %s is already used by agent %s", remoteURL, existingAgent.Agent.Name)
-				}
-			}
-			if nextCursor == "" {
-				break
-			}
-			cursor = nextCursor
 		}
 	}
 
