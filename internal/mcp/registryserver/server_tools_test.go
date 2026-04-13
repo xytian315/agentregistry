@@ -212,6 +212,18 @@ func (f *fakeMCPRegistry) DeleteSkill(ctx context.Context, skillName, version st
 	return errors.New("not implemented")
 }
 
+func (f *fakeMCPRegistry) ApplySkill(_ context.Context, req *models.SkillJSON) (*models.SkillResponse, error) {
+	return &models.SkillResponse{Skill: *req}, nil
+}
+
+func (f *fakeMCPRegistry) ApplyServer(_ context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	return &apiv0.ServerResponse{Server: *req}, nil
+}
+
+func (f *fakeMCPRegistry) ApplyAgent(_ context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+	return &models.AgentResponse{Agent: *req}, nil
+}
+
 func (f *fakeMCPRegistry) ListDeployments(ctx context.Context, filter *models.DeploymentFilter) ([]*models.Deployment, error) {
 	if f.getDeploymentsFn != nil {
 		return f.getDeploymentsFn(ctx, filter)

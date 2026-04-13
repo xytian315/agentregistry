@@ -77,10 +77,13 @@ func RegisterRoutes(
 	v0deployments.RegisterDeploymentsEndpoints(api, pathPrefix, svcs.Deployment)
 	v0agents.RegisterAgentsEndpoints(api, pathPrefix, svcs.Agent, svcs.Deployment)
 	v0agents.RegisterAgentsCreateEndpoint(api, pathPrefix, svcs.Agent, svcs.Deployment)
+	v0agents.RegisterAgentsApplyEndpoint(api, pathPrefix, svcs.Agent, svcs.Deployment)
 	v0skills.RegisterSkillsEndpoints(api, pathPrefix, svcs.Skill)
 	v0skills.RegisterSkillsCreateEndpoint(api, pathPrefix, svcs.Skill)
+	v0skills.RegisterSkillsApplyEndpoint(api, pathPrefix, svcs.Skill)
 	v0prompts.RegisterPromptsEndpoints(api, pathPrefix, svcs.Prompt)
 	v0prompts.RegisterPromptsCreateEndpoint(api, pathPrefix, svcs.Prompt)
+	v0prompts.RegisterPromptsApplyEndpoint(api, pathPrefix, svcs.Prompt)
 
 	if opts != nil && opts.Indexer != nil && opts.JobManager != nil {
 		v0embeddings.RegisterEmbeddingsEndpoints(api, pathPrefix, opts.Indexer, opts.JobManager)

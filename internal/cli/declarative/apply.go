@@ -35,7 +35,6 @@ Each file may contain one or more resources separated by ---. Supported kinds:
 Examples:
   arctl apply -f agent.yaml
   arctl apply -f stack.yaml --dry-run
-  arctl apply -f agent.yaml -f mcpserver.yaml --overwrite
   cat stack.yaml | arctl apply -f -`,
 		SilenceUsage: true,
 		RunE:         runApply,
@@ -45,8 +44,6 @@ Examples:
 	_ = cmd.MarkFlagRequired("filename")
 	cmd.Flags().Bool("dry-run", false,
 		"Preview what would be applied without making API calls")
-	cmd.Flags().Bool("overwrite", false,
-		"Overwrite an existing resource version")
 	return cmd
 }
 
@@ -59,11 +56,6 @@ func runApply(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("getting dry-run flag: %w", err)
 	}
-	overwrite, err := cmd.Flags().GetBool("overwrite")
-	if err != nil {
-		return fmt.Errorf("getting overwrite flag: %w", err)
-	}
-
 	// 1. Parse all input files into resources.
 	var allResources []*scheme.Resource
 	for _, path := range filePaths {
@@ -111,7 +103,7 @@ func runApply(cmd *cobra.Command, _ []string) error {
 	var errCount int
 	for _, r := range allResources {
 		h, _ := resource.Lookup(r.Kind) // already validated above
-		if err := h.Apply(apiClient, r, overwrite); err != nil {
+		if err := h.Apply(apiClient, r); err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), "Error: %s/%s: %v\n", strings.ToLower(r.Kind), r.Metadata.Name, err)
 			errCount++
 			continue

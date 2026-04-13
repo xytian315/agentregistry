@@ -23,6 +23,7 @@ type Dependencies struct {
 type Registry interface {
 	database.SkillReader
 	PublishSkill(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error)
+	ApplySkill(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error)
 	DeleteSkill(ctx context.Context, skillName, version string) error
 }
 
@@ -57,6 +58,45 @@ func (s *registry) ListSkills(ctx context.Context, filter *database.SkillFilter,
 func (s *registry) PublishSkill(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error) {
 	return database.InTransactionT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*models.SkillResponse, error) {
 		return s.createSkillInTransaction(txCtx, scope.Skills(), req)
+	})
+}
+
+func (s *registry) ApplySkill(ctx context.Context, req *models.SkillJSON) (*models.SkillResponse, error) {
+	if req == nil || req.Name == "" || req.Version == "" {
+		return nil, fmt.Errorf("invalid skill payload: name and version are required")
+	}
+	return database.InTransactionT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*models.SkillResponse, error) {
+		skills := scope.Skills()
+		exists, err := skills.CheckSkillVersionExists(txCtx, req.Name, req.Version)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			// Run the same remote URL conflict check as the create path: a
+			// different skill must not already own any of the requested remotes.
+			for _, remote := range req.Remotes {
+				remoteURL := remote.URL
+				filter := &database.SkillFilter{RemoteURL: &remoteURL}
+				cursor := ""
+				for {
+					existing, nextCursor, err := skills.ListSkills(txCtx, filter, cursor, 1000)
+					if err != nil {
+						return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
+					}
+					for _, existingSkill := range existing {
+						if existingSkill.Skill.Name != req.Name {
+							return nil, fmt.Errorf("remote URL %s is already used by skill %s", remoteURL, existingSkill.Skill.Name)
+						}
+					}
+					if nextCursor == "" {
+						break
+					}
+					cursor = nextCursor
+				}
+			}
+			return skills.UpdateSkill(txCtx, req.Name, req.Version, req)
+		}
+		return s.createSkillInTransaction(txCtx, skills, req)
 	})
 }
 

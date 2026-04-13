@@ -9,6 +9,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -576,5 +577,148 @@ func TestDeclarativeInit_InvalidArgs(t *testing.T) {
 				t.Errorf("expected output to contain %q, got:\n%s", tc.errContains, combined)
 			}
 		})
+	}
+}
+
+// TestDeclarativeApply_Idempotent verifies that applying the same agent YAML
+// twice succeeds without error — the second apply is a no-op update.
+func TestDeclarativeApply_Idempotent(t *testing.T) {
+	regURL := RegistryURL(t)
+	tmpDir := t.TempDir()
+
+	agentName := UniqueAgentName("declidempagent")
+	version := "0.0.1-e2e"
+
+	t.Cleanup(func() {
+		RunArctl(t, tmpDir, "delete", "agent", agentName, "--version", version, "--registry-url", regURL)
+	})
+
+	agentYAML := fmt.Sprintf(`
+apiVersion: ar.dev/v1alpha1
+kind: Agent
+metadata:
+  name: %s
+  version: "%s"
+spec:
+  image: ghcr.io/e2e-test/idemp-agent:latest
+  description: "Idempotent apply test agent"
+  language: python
+  framework: adk
+  modelProvider: gemini
+  modelName: gemini-2.0-flash
+`, agentName, version)
+
+	yamlPath := writeDeclarativeYAML(t, tmpDir, "agent.yaml", agentYAML)
+
+	// First apply — creates the resource.
+	result := RunArctl(t, tmpDir, "apply", "-f", yamlPath, "--registry-url", regURL)
+	RequireSuccess(t, result)
+	RequireOutputContains(t, result, "agent/"+agentName+" applied")
+
+	// Second apply — same file, must not fail.
+	result = RunArctl(t, tmpDir, "apply", "-f", yamlPath, "--registry-url", regURL)
+	RequireSuccess(t, result)
+	RequireOutputContains(t, result, "agent/"+agentName+" applied")
+
+	// Resource should still exist after both applies.
+	verifyAgentExists(t, regURL, agentName, version)
+}
+
+// fetchAgentDescription fetches the agent from the registry HTTP API and
+// returns the description field from the response body.
+func fetchAgentDescription(t *testing.T, regURL, name, version string) string {
+	t.Helper()
+	encoded := strings.ReplaceAll(name, "/", "%2F")
+	url := fmt.Sprintf("%s/agents/%s/versions/%s", regURL, encoded, version)
+	client := &http.Client{}
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("Failed to GET agent %s@%s: %v", name, version, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected HTTP 200 for agent %s@%s but got %d", name, version, resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("Failed to read response body: %v", err)
+	}
+	var result struct {
+		Agent struct {
+			Description string `json:"description"`
+		} `json:"agent"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("Failed to decode agent response: %v\nBody: %s", err, body)
+	}
+	return result.Agent.Description
+}
+
+// TestDeclarativeApply_Update verifies that applying an agent YAML with a
+// changed description updates the existing resource in the registry.
+func TestDeclarativeApply_Update(t *testing.T) {
+	regURL := RegistryURL(t)
+	tmpDir := t.TempDir()
+
+	agentName := UniqueAgentName("declupdateagent")
+	version := "0.0.1-e2e"
+
+	t.Cleanup(func() {
+		RunArctl(t, tmpDir, "delete", "agent", agentName, "--version", version, "--registry-url", regURL)
+	})
+
+	// Step 1: Apply with "v1 description".
+	v1YAML := fmt.Sprintf(`
+apiVersion: ar.dev/v1alpha1
+kind: Agent
+metadata:
+  name: %s
+  version: "%s"
+spec:
+  image: ghcr.io/e2e-test/update-agent:latest
+  description: "v1 description"
+  language: python
+  framework: adk
+  modelProvider: gemini
+  modelName: gemini-2.0-flash
+`, agentName, version)
+
+	yamlPath := writeDeclarativeYAML(t, tmpDir, "agent.yaml", v1YAML)
+
+	result := RunArctl(t, tmpDir, "apply", "-f", yamlPath, "--registry-url", regURL)
+	RequireSuccess(t, result)
+	RequireOutputContains(t, result, "agent/"+agentName+" applied")
+	verifyAgentExists(t, regURL, agentName, version)
+
+	desc := fetchAgentDescription(t, regURL, agentName, version)
+	if desc != "v1 description" {
+		t.Errorf("expected description %q after first apply, got %q", "v1 description", desc)
+	}
+
+	// Step 2: Apply same agent with "v2 description".
+	v2YAML := fmt.Sprintf(`
+apiVersion: ar.dev/v1alpha1
+kind: Agent
+metadata:
+  name: %s
+  version: "%s"
+spec:
+  image: ghcr.io/e2e-test/update-agent:latest
+  description: "v2 description"
+  language: python
+  framework: adk
+  modelProvider: gemini
+  modelName: gemini-2.0-flash
+`, agentName, version)
+
+	yamlPath = writeDeclarativeYAML(t, tmpDir, "agent.yaml", v2YAML)
+
+	result = RunArctl(t, tmpDir, "apply", "-f", yamlPath, "--registry-url", regURL)
+	RequireSuccess(t, result)
+
+	// Step 3: Verify the description was updated.
+	desc = fetchAgentDescription(t, regURL, agentName, version)
+	if desc != "v2 description" {
+		t.Errorf("expected description %q after second apply, got %q", "v2 description", desc)
 	}
 }

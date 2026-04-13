@@ -22,31 +22,17 @@ func (h *MCPServerHandler) Kind() string     { return "MCPServer" }
 func (h *MCPServerHandler) Singular() string { return "mcp" }
 func (h *MCPServerHandler) Plural() string   { return "mcps" }
 
-func (h *MCPServerHandler) Apply(c *client.Client, r *scheme.Resource, overwrite bool) error {
+func (h *MCPServerHandler) Apply(c *client.Client, r *scheme.Resource) error {
 	serverJSON, err := h.toServerJSON(r)
 	if err != nil {
 		return err
 	}
-
-	var deleted bool
-	if overwrite {
-		exists, err := c.GetServerByNameAndVersion(serverJSON.Name, serverJSON.Version)
-		if err != nil {
-			return fmt.Errorf("checking existing server: %w", err)
-		}
-		if exists != nil {
-			if err := c.DeleteMCPServer(serverJSON.Name, serverJSON.Version); err != nil {
-				return fmt.Errorf("deleting existing server for overwrite: %w", err)
-			}
-			deleted = true
-		}
-	}
-
-	if _, err = c.CreateMCPServer(serverJSON); err != nil {
-		if deleted {
-			return fmt.Errorf("mcpserver/%s (%s) was deleted but re-create failed — resource no longer exists: %w", serverJSON.Name, serverJSON.Version, err)
-		}
-		return err
+	// MCPServer has no server-side apply (PUT) endpoint due to a route conflict with
+	// the admin edit endpoint. Falls back to POST (create-only) — applying the same
+	// version twice will return an error.
+	_, err = c.CreateMCPServer(serverJSON)
+	if err != nil {
+		return fmt.Errorf("%w (MCPServer does not support idempotent apply; use a new version to update)", err)
 	}
 	return nil
 }
@@ -64,7 +50,7 @@ func (h *MCPServerHandler) List(c *client.Client) ([]any, error) {
 }
 
 func (h *MCPServerHandler) Get(c *client.Client, name string) (any, error) {
-	return c.GetServerByName(name)
+	return c.GetServer(name)
 }
 
 func (h *MCPServerHandler) Delete(c *client.Client, name, version string) error {

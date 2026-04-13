@@ -191,6 +191,41 @@ paths:
                         application/problem+json:
                             schema:
                                 $ref: '#/components/schemas/ErrorModel'
+        put:
+            tags:
+                - agents
+            summary: Apply agent (create or update)
+            operationId: apply-agent-v0
+            parameters:
+                - name: agentName
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AgentJSON'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AgentResponse'
+                default:
+                    description: Error
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorModel'
         delete:
             tags:
                 - agents
@@ -749,6 +784,41 @@ paths:
                     examples:
                         - 1.0.0
                   example: 1.0.0
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PromptResponse'
+                default:
+                    description: Error
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorModel'
+        put:
+            tags:
+                - prompts
+            summary: Apply prompt (create or update)
+            operationId: apply-prompt-v0
+            parameters:
+                - name: promptName
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PromptJSON'
+                required: true
             responses:
                 "200":
                     description: OK
@@ -1504,6 +1574,41 @@ paths:
                     examples:
                         - 1.0.0
                   example: 1.0.0
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SkillResponse'
+                default:
+                    description: Error
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorModel'
+        put:
+            tags:
+                - skills
+            summary: Apply skill (create or update)
+            operationId: apply-skill-v0
+            parameters:
+                - name: skillName
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SkillJSON'
+                required: true
             responses:
                 "200":
                     description: OK

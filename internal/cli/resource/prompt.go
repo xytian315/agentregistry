@@ -20,31 +20,13 @@ func (h *PromptHandler) Kind() string     { return "Prompt" }
 func (h *PromptHandler) Singular() string { return "prompt" }
 func (h *PromptHandler) Plural() string   { return "prompts" }
 
-func (h *PromptHandler) Apply(c *client.Client, r *scheme.Resource, overwrite bool) error {
+func (h *PromptHandler) Apply(c *client.Client, r *scheme.Resource) error {
 	promptJSON, err := h.toPromptJSON(r)
 	if err != nil {
 		return err
 	}
-	var deleted bool
-	if overwrite {
-		exists, err := c.GetPromptByNameAndVersion(promptJSON.Name, promptJSON.Version)
-		if err != nil {
-			return fmt.Errorf("checking existing prompt: %w", err)
-		}
-		if exists != nil {
-			if err := c.DeletePrompt(promptJSON.Name, promptJSON.Version); err != nil {
-				return fmt.Errorf("deleting existing prompt for overwrite: %w", err)
-			}
-			deleted = true
-		}
-	}
-	if _, err = c.CreatePrompt(promptJSON); err != nil {
-		if deleted {
-			return fmt.Errorf("prompt/%s (%s) was deleted but re-create failed — resource no longer exists: %w", promptJSON.Name, promptJSON.Version, err)
-		}
-		return err
-	}
-	return nil
+	_, err = c.ApplyPrompt(promptJSON.Name, promptJSON.Version, promptJSON)
+	return err
 }
 
 func (h *PromptHandler) List(c *client.Client) ([]any, error) {
@@ -60,7 +42,7 @@ func (h *PromptHandler) List(c *client.Client) ([]any, error) {
 }
 
 func (h *PromptHandler) Get(c *client.Client, name string) (any, error) {
-	return c.GetPromptByName(name)
+	return c.GetPrompt(name)
 }
 
 func (h *PromptHandler) Delete(c *client.Client, name, version string) error {

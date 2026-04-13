@@ -20,31 +20,13 @@ func (h *SkillHandler) Kind() string     { return "Skill" }
 func (h *SkillHandler) Singular() string { return "skill" }
 func (h *SkillHandler) Plural() string   { return "skills" }
 
-func (h *SkillHandler) Apply(c *client.Client, r *scheme.Resource, overwrite bool) error {
+func (h *SkillHandler) Apply(c *client.Client, r *scheme.Resource) error {
 	skillJSON, err := h.toSkillJSON(r)
 	if err != nil {
 		return err
 	}
-	var deleted bool
-	if overwrite {
-		exists, err := c.GetSkillByNameAndVersion(skillJSON.Name, skillJSON.Version)
-		if err != nil {
-			return fmt.Errorf("checking existing skill: %w", err)
-		}
-		if exists != nil {
-			if err := c.DeleteSkill(skillJSON.Name, skillJSON.Version); err != nil {
-				return fmt.Errorf("deleting existing skill for overwrite: %w", err)
-			}
-			deleted = true
-		}
-	}
-	if _, err = c.CreateSkill(skillJSON); err != nil {
-		if deleted {
-			return fmt.Errorf("skill/%s (%s) was deleted but re-create failed — resource no longer exists: %w", skillJSON.Name, skillJSON.Version, err)
-		}
-		return err
-	}
-	return nil
+	_, err = c.ApplySkill(skillJSON.Name, skillJSON.Version, skillJSON)
+	return err
 }
 
 func (h *SkillHandler) List(c *client.Client) ([]any, error) {
@@ -60,7 +42,7 @@ func (h *SkillHandler) List(c *client.Client) ([]any, error) {
 }
 
 func (h *SkillHandler) Get(c *client.Client, name string) (any, error) {
-	return c.GetSkillByName(name)
+	return c.GetSkill(name)
 }
 
 func (h *SkillHandler) Delete(c *client.Client, name, version string) error {

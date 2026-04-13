@@ -46,7 +46,15 @@ func newTestServer(t *testing.T, fake *servicetesting.FakeRegistry) (*client.Cli
 		JWTPrivateKey: "0000000000000000000000000000000000000000000000000000000000000000",
 	}
 
-	router.NewHumaAPI(cfg, fake, mux, metrics, versionInfo, nil, nil, nil)
+	svcs := router.RegistryServices{
+		Agent:      fake,
+		Server:     fake,
+		Skill:      fake,
+		Prompt:     fake,
+		Provider:   fake,
+		Deployment: fake,
+	}
+	router.NewHumaAPI(cfg, svcs, mux, metrics, versionInfo, nil, nil, nil)
 	server := httptest.NewServer(mux)
 
 	c := client.NewClient(server.URL+"/v0", "test-token")
@@ -67,7 +75,7 @@ func writeYAML(t *testing.T, content string) string {
 func TestApplyIntegration_Agent(t *testing.T) {
 	var capturedReq *models.AgentJSON
 	fake := servicetesting.NewFakeRegistry()
-	fake.CreateAgentFn = func(_ context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+	fake.ApplyAgentFn = func(_ context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
 		capturedReq = req
 		return &models.AgentResponse{Agent: *req}, nil
 	}
@@ -98,7 +106,7 @@ spec:
 	cmd.SetArgs([]string{"-f", yamlPath})
 	require.NoError(t, cmd.Execute())
 
-	require.NotNil(t, capturedReq, "CreateAgent was not called")
+	require.NotNil(t, capturedReq, "ApplyAgent was not called")
 	assert.Equal(t, "acme/bot", capturedReq.Name)
 	assert.Equal(t, "1.0.0", capturedReq.Version)
 	assert.Equal(t, "adk", capturedReq.Framework)
@@ -146,7 +154,7 @@ spec:
 func TestApplyIntegration_MultiDoc(t *testing.T) {
 	var agentCalled, serverCalled bool
 	fake := servicetesting.NewFakeRegistry()
-	fake.CreateAgentFn = func(_ context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+	fake.ApplyAgentFn = func(_ context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
 		agentCalled = true
 		return &models.AgentResponse{Agent: *req}, nil
 	}
@@ -196,30 +204,88 @@ spec:
 	assert.Contains(t, out, "agent/acme/bot applied")
 }
 
-func TestApplyIntegration_Overwrite_ReplacesExisting(t *testing.T) {
-	existing := &models.AgentResponse{
-		Agent: models.AgentJSON{
-			AgentManifest: models.AgentManifest{
-				Name:    "acme/bot",
-				Version: "1.0.0",
-			},
-			Version: "1.0.0",
-		},
+func TestApplyIntegration_Skill(t *testing.T) {
+	var capturedReq *models.SkillJSON
+	fake := servicetesting.NewFakeRegistry()
+	fake.ApplySkillFn = func(_ context.Context, req *models.SkillJSON) (*models.SkillResponse, error) {
+		capturedReq = req
+		return &models.SkillResponse{Skill: *req}, nil
 	}
-	var deletedName, deletedVersion string
-	var createCalled bool
+
+	c, cleanup := newTestServer(t, fake)
+	defer cleanup()
+	declarative.SetAPIClient(c)
+
+	yamlPath := writeYAML(t, `
+apiVersion: ar.dev/v1alpha1
+kind: Skill
+metadata:
+  name: acme/summarize
+  version: "1.0.0"
+spec:
+  description: "Summarizes text"
+`)
+
+	var buf bytes.Buffer
+	cmd := declarative.NewApplyCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"-f", yamlPath})
+	require.NoError(t, cmd.Execute())
+
+	require.NotNil(t, capturedReq, "ApplySkill was not called")
+	assert.Equal(t, "acme/summarize", capturedReq.Name)
+	assert.Equal(t, "1.0.0", capturedReq.Version)
+	assert.Equal(t, "Summarizes text", capturedReq.Description)
+	assert.Contains(t, buf.String(), "skill/acme/summarize applied")
+}
+
+func TestApplyIntegration_Prompt(t *testing.T) {
+	var capturedReq *models.PromptJSON
+	fake := servicetesting.NewFakeRegistry()
+	fake.ApplyPromptFn = func(_ context.Context, req *models.PromptJSON) (*models.PromptResponse, error) {
+		capturedReq = req
+		return &models.PromptResponse{Prompt: *req}, nil
+	}
+
+	c, cleanup := newTestServer(t, fake)
+	defer cleanup()
+	declarative.SetAPIClient(c)
+
+	yamlPath := writeYAML(t, `
+apiVersion: ar.dev/v1alpha1
+kind: Prompt
+metadata:
+  name: acme/system
+  version: "1.0.0"
+spec:
+  content: "You are a helpful assistant."
+`)
+
+	var buf bytes.Buffer
+	cmd := declarative.NewApplyCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"-f", yamlPath})
+	require.NoError(t, cmd.Execute())
+
+	require.NotNil(t, capturedReq, "ApplyPrompt was not called")
+	assert.Equal(t, "acme/system", capturedReq.Name)
+	assert.Equal(t, "1.0.0", capturedReq.Version)
+	assert.Equal(t, "You are a helpful assistant.", capturedReq.Content)
+	assert.Contains(t, buf.String(), "prompt/acme/system applied")
+}
+
+func TestApplyIntegration_Idempotent_UpdatesExisting(t *testing.T) {
+	// Verify that applying a resource that already exists succeeds via server-side upsert.
+	// The ApplyAgent service method is called with the new data — no delete step.
+	var applyCalls int
+	var lastApplied *models.AgentJSON
 
 	fake := servicetesting.NewFakeRegistry()
-	fake.GetAgentByNameAndVersionFn = func(_ context.Context, name, version string) (*models.AgentResponse, error) {
-		return existing, nil
-	}
-	fake.DeleteAgentFn = func(_ context.Context, name, version string) error {
-		deletedName = name
-		deletedVersion = version
-		return nil
-	}
-	fake.CreateAgentFn = func(_ context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
-		createCalled = true
+	fake.ApplyAgentFn = func(_ context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+		applyCalls++
+		lastApplied = req
 		return &models.AgentResponse{Agent: *req}, nil
 	}
 
@@ -242,22 +308,27 @@ spec:
   modelName: gemini-2.0-flash
 `)
 
+	var buf bytes.Buffer
 	cmd := declarative.NewApplyCmd()
-	cmd.SetArgs([]string{"-f", yamlPath, "--overwrite"})
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"-f", yamlPath})
 	require.NoError(t, cmd.Execute())
 
-	assert.Equal(t, "acme/bot", deletedName)
-	assert.Equal(t, "1.0.0", deletedVersion)
-	assert.True(t, createCalled)
+	assert.Equal(t, 1, applyCalls, "ApplyAgent should be called exactly once")
+	require.NotNil(t, lastApplied)
+	assert.Equal(t, "acme/bot", lastApplied.Name)
+	assert.Contains(t, buf.String(), "agent/acme/bot applied")
 }
 
-func TestApplyIntegration_Overwrite_CreatesWhenNotFound(t *testing.T) {
-	var createCalled bool
+func TestApplyIntegration_CreatesWhenNotFound(t *testing.T) {
+	// Verify that applying a resource that does not yet exist succeeds.
+	// The upsert (ApplyAgent) path handles both create and update transparently.
+	var applyCalled bool
 
 	fake := servicetesting.NewFakeRegistry()
-	// Leave f.Agents empty → GetAgentByNameAndVersion returns ErrNotFound → client returns nil, nil
-	fake.CreateAgentFn = func(_ context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
-		createCalled = true
+	fake.ApplyAgentFn = func(_ context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+		applyCalled = true
 		return &models.AgentResponse{Agent: *req}, nil
 	}
 
@@ -280,11 +351,15 @@ spec:
   modelName: gemini-2.0-flash
 `)
 
+	var buf bytes.Buffer
 	cmd := declarative.NewApplyCmd()
-	cmd.SetArgs([]string{"-f", yamlPath, "--overwrite"})
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"-f", yamlPath})
 	require.NoError(t, cmd.Execute())
 
-	assert.True(t, createCalled, "CreateAgent was not called")
+	assert.True(t, applyCalled, "ApplyAgent was not called")
+	assert.Contains(t, buf.String(), "agent/acme/new-bot applied")
 }
 
 // --- get integration tests ---

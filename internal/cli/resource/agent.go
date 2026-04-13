@@ -21,33 +21,13 @@ func (h *AgentHandler) Kind() string     { return "Agent" }
 func (h *AgentHandler) Singular() string { return "agent" }
 func (h *AgentHandler) Plural() string   { return "agents" }
 
-func (h *AgentHandler) Apply(c *client.Client, r *scheme.Resource, overwrite bool) error {
+func (h *AgentHandler) Apply(c *client.Client, r *scheme.Resource) error {
 	agentJSON, err := h.toAgentJSON(r)
 	if err != nil {
 		return err
 	}
-
-	var deleted bool
-	if overwrite {
-		exists, err := c.GetAgentByNameAndVersion(agentJSON.Name, agentJSON.Version)
-		if err != nil {
-			return fmt.Errorf("checking existing agent: %w", err)
-		}
-		if exists != nil {
-			if err := c.DeleteAgent(agentJSON.Name, agentJSON.Version); err != nil {
-				return fmt.Errorf("deleting existing agent for overwrite: %w", err)
-			}
-			deleted = true
-		}
-	}
-
-	if _, err = c.CreateAgent(agentJSON); err != nil {
-		if deleted {
-			return fmt.Errorf("agent/%s (%s) was deleted but re-create failed — resource no longer exists: %w", agentJSON.Name, agentJSON.Version, err)
-		}
-		return err
-	}
-	return nil
+	_, err = c.ApplyAgent(agentJSON.Name, agentJSON.Version, agentJSON)
+	return err
 }
 
 func (h *AgentHandler) List(c *client.Client) ([]any, error) {
@@ -63,7 +43,7 @@ func (h *AgentHandler) List(c *client.Client) ([]any, error) {
 }
 
 func (h *AgentHandler) Get(c *client.Client, name string) (any, error) {
-	return c.GetAgentByName(name)
+	return c.GetAgent(name)
 }
 
 func (h *AgentHandler) Delete(c *client.Client, name, version string) error {

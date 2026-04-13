@@ -15,7 +15,7 @@ type ResourceHandler interface {
 	Kind() string
 	Singular() string
 	Plural() string
-	Apply(c *client.Client, r *scheme.Resource, overwrite bool) error
+	Apply(c *client.Client, r *scheme.Resource) error
 	List(c *client.Client) ([]any, error)
 	Get(c *client.Client, name string) (any, error)
 	Delete(c *client.Client, name, version string) error

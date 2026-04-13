@@ -2023,6 +2023,10 @@ func (m *promptMockDB) DeletePrompt(context.Context, string, string) error {
 	return nil
 }
 
+func (m *promptMockDB) UpdatePrompt(_ context.Context, _, _ string, req *models.PromptJSON) (*models.PromptResponse, error) {
+	return &models.PromptResponse{Prompt: *req}, nil
+}
+
 func TestResolveAgentManifestPrompts(t *testing.T) {
 	tests := []struct {
 		name       string

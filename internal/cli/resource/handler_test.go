@@ -19,7 +19,7 @@ type stubHandler struct{ kind, singular, plural string }
 func (s *stubHandler) Kind() string                                             { return s.kind }
 func (s *stubHandler) Singular() string                                         { return s.singular }
 func (s *stubHandler) Plural() string                                           { return s.plural }
-func (s *stubHandler) Apply(_ *client.Client, _ *scheme.Resource, _ bool) error { return nil }
+func (s *stubHandler) Apply(_ *client.Client, _ *scheme.Resource) error { return nil }
 func (s *stubHandler) List(_ *client.Client) ([]any, error)                     { return nil, nil }
 func (s *stubHandler) Get(_ *client.Client, _ string) (any, error)              { return nil, nil }
 func (s *stubHandler) Delete(_ *client.Client, _, _ string) error               { return nil }

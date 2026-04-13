@@ -32,6 +32,7 @@ type Dependencies struct {
 type Registry interface {
 	database.ServerReader
 	PublishServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error)
+	ApplyServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error)
 	UpdateServer(ctx context.Context, serverName, version string, req *apiv0.ServerJSON, newStatus *string) (*apiv0.ServerResponse, error)
 	SetServerReadme(ctx context.Context, serverName, version string, content []byte, contentType string) error
 	DeleteServer(ctx context.Context, serverName, version string) error
@@ -87,6 +88,51 @@ func (s *registry) ListServers(ctx context.Context, filter *database.ServerFilte
 func (s *registry) PublishServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
 	return database.InTransactionT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*apiv0.ServerResponse, error) {
 		return s.createServerInTransaction(txCtx, scope.Servers(), req)
+	})
+}
+
+func (s *registry) ApplyServer(ctx context.Context, req *apiv0.ServerJSON) (*apiv0.ServerResponse, error) {
+	if req == nil || req.Name == "" || req.Version == "" {
+		return nil, fmt.Errorf("invalid server payload: name and version are required")
+	}
+	return database.InTransactionT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*apiv0.ServerResponse, error) {
+		servers := scope.Servers()
+		exists, err := servers.CheckVersionExists(txCtx, req.Name, req.Version)
+		if err != nil {
+			return nil, err
+		}
+		if exists { //nolint:nestif
+			// Run the same remote URL conflict check as the create path: a
+			// different server must not already own any of the requested remotes.
+			if err := s.validateNoDuplicateRemoteURLs(txCtx, servers, *req); err != nil {
+				return nil, err
+			}
+			result, err := servers.UpdateServer(txCtx, req.Name, req.Version, req)
+			if err != nil {
+				return nil, err
+			}
+			// Trigger async embedding regeneration (spec may have changed)
+			serverCopy := *req // copy before goroutine
+			if embeddingutil.EnabledOnPublish(s.cfg, s.embeddingsProvider) {
+				go func() {
+					bgCtx := context.Background()
+					payload := embeddings.BuildServerEmbeddingPayload(&serverCopy)
+					if strings.TrimSpace(payload) == "" {
+						return
+					}
+					embedding, embErr := embeddings.GenerateSemanticEmbedding(bgCtx, s.embeddingsProvider, payload, s.cfg.Embeddings.Dimensions)
+					if embErr != nil {
+						s.logger.Warn("failed to generate embedding for server", "name", serverCopy.Name, "version", serverCopy.Version, "error", embErr)
+					} else if embedding != nil {
+						if storeErr := s.SetServerEmbedding(bgCtx, serverCopy.Name, serverCopy.Version, embedding); storeErr != nil {
+							s.logger.Warn("failed to store embedding for server", "name", serverCopy.Name, "version", serverCopy.Version, "error", storeErr)
+						}
+					}
+				}()
+			}
+			return result, nil
+		}
+		return s.createServerInTransaction(txCtx, servers, req)
 	})
 }
 

@@ -35,6 +35,7 @@ type Dependencies struct {
 type Registry interface {
 	database.AgentReader
 	PublishAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error)
+	ApplyAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error)
 	DeleteAgent(ctx context.Context, agentName, version string) error
 	SetAgentEmbedding(ctx context.Context, agentName, version string, embedding *database.SemanticEmbedding) error
 	ResolveAgentManifestSkills(ctx context.Context, manifest *models.AgentManifest) ([]platformtypes.AgentSkillRef, error)
@@ -98,6 +99,68 @@ func (s *registry) ListAgents(ctx context.Context, filter *database.AgentFilter,
 func (s *registry) PublishAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
 	return database.InTransactionT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*models.AgentResponse, error) {
 		return s.createAgentInTransaction(txCtx, scope.Agents(), req)
+	})
+}
+
+func (s *registry) ApplyAgent(ctx context.Context, req *models.AgentJSON) (*models.AgentResponse, error) {
+	if req == nil || req.Name == "" || req.Version == "" {
+		return nil, fmt.Errorf("invalid agent payload: name and version are required")
+	}
+	return database.InTransactionT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*models.AgentResponse, error) {
+		agents := scope.Agents()
+		exists, err := agents.CheckAgentVersionExists(txCtx, req.Name, req.Version)
+		if err != nil {
+			return nil, err
+		}
+		if exists { //nolint:nestif
+			// Run the same remote URL conflict check as the create path: a
+			// different agent must not already own any of the requested remotes.
+			for _, remote := range req.Remotes {
+				remoteURL := remote.URL
+				filter := &database.AgentFilter{RemoteURL: &remoteURL}
+				cursor := ""
+				for {
+					existing, nextCursor, err := agents.ListAgents(txCtx, filter, cursor, 1000)
+					if err != nil {
+						return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
+					}
+					for _, existingAgent := range existing {
+						if existingAgent.Agent.Name != req.Name {
+							return nil, fmt.Errorf("remote URL %s is already used by agent %s", remoteURL, existingAgent.Agent.Name)
+						}
+					}
+					if nextCursor == "" {
+						break
+					}
+					cursor = nextCursor
+				}
+			}
+			result, err := agents.UpdateAgent(txCtx, req.Name, req.Version, req)
+			if err != nil {
+				return nil, err
+			}
+			// Trigger async embedding regeneration (spec may have changed)
+			agentCopy := *req // copy before goroutine
+			if embeddingutil.EnabledOnPublish(s.cfg, s.embeddingsProvider) {
+				go func() {
+					bgCtx := context.Background()
+					payload := embeddings.BuildAgentEmbeddingPayload(&agentCopy)
+					if strings.TrimSpace(payload) == "" {
+						return
+					}
+					embedding, embErr := embeddings.GenerateSemanticEmbedding(bgCtx, s.embeddingsProvider, payload, s.cfg.Embeddings.Dimensions)
+					if embErr != nil {
+						s.logger.Warn("failed to generate embedding for agent", "name", agentCopy.Name, "version", agentCopy.Version, "error", embErr)
+					} else if embedding != nil {
+						if storeErr := s.SetAgentEmbedding(bgCtx, agentCopy.Name, agentCopy.Version, embedding); storeErr != nil {
+							s.logger.Warn("failed to store embedding for agent", "name", agentCopy.Name, "version", agentCopy.Version, "error", storeErr)
+						}
+					}
+				}()
+			}
+			return result, nil
+		}
+		return s.createAgentInTransaction(txCtx, agents, req)
 	})
 }
 
@@ -176,15 +239,23 @@ func (s *registry) createAgentInTransaction(ctx context.Context, agents database
 	agentJSON := *req
 
 	for _, remote := range agentJSON.Remotes {
-		filter := &database.AgentFilter{RemoteURL: &remote.URL}
-		existing, _, err := agents.ListAgents(ctx, filter, "", 1000)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
-		}
-		for _, existingAgent := range existing {
-			if existingAgent.Agent.Name != agentJSON.Name {
-				return nil, fmt.Errorf("remote URL %s is already used by agent %s", remote.URL, existingAgent.Agent.Name)
+		remoteURL := remote.URL
+		filter := &database.AgentFilter{RemoteURL: &remoteURL}
+		cursor := ""
+		for {
+			existing, nextCursor, err := agents.ListAgents(ctx, filter, cursor, 1000)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
 			}
+			for _, existingAgent := range existing {
+				if existingAgent.Agent.Name != agentJSON.Name {
+					return nil, fmt.Errorf("remote URL %s is already used by agent %s", remoteURL, existingAgent.Agent.Name)
+				}
+			}
+			if nextCursor == "" {
+				break
+			}
+			cursor = nextCursor
 		}
 	}
 
