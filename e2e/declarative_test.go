@@ -968,25 +968,22 @@ func TestApplyDeployment_HTTPIdempotent(t *testing.T) {
 	result = RunArctl(t, tmpDir, "agent", "publish", agentDir, "--registry-url", regURL)
 	RequireSuccess(t, result)
 
-	// Build the deployment request body. Local provider, agent resource type.
-	deployBody := fmt.Sprintf(`{
-        "serverName": %q,
-        "version": "0.0.1",
-        "resourceType": "agent",
-        "providerId": "local"
-    }`, agentName)
+	// Build the sub-resource deployment URL: PUT /v0/agents/{name}/versions/0.0.1/deployments/local
+	encodedAgent := strings.ReplaceAll(agentName, "/", "%2F")
+	deployURL := fmt.Sprintf("%s/agents/%s/versions/0.0.1/deployments/local", regURL, encodedAgent)
+	deployBody := `{}`
 
 	httpClient := &http.Client{Timeout: 60 * time.Second}
 	doPut := func(t *testing.T) (string, string) {
 		t.Helper()
-		req, err := http.NewRequest(http.MethodPut, regURL+"/deployments", strings.NewReader(deployBody))
+		req, err := http.NewRequest(http.MethodPut, deployURL, strings.NewReader(deployBody))
 		if err != nil {
 			t.Fatalf("failed to build PUT request: %v", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := httpClient.Do(req)
 		if err != nil {
-			t.Fatalf("PUT /v0/deployments failed: %v", err)
+			t.Fatalf("PUT %s failed: %v", deployURL, err)
 		}
 		defer resp.Body.Close()
 		body, _ := io.ReadAll(resp.Body)
@@ -1075,17 +1072,15 @@ func TestApplyDeployment_HTTPRedeploysOnEnvChange(t *testing.T) {
 	result = RunArctl(t, tmpDir, "agent", "publish", agentDir, "--registry-url", regURL)
 	RequireSuccess(t, result)
 
+	// Build the sub-resource deployment URL: PUT /v0/agents/{name}/versions/0.0.1/deployments/local
+	encodedAgent := strings.ReplaceAll(agentName, "/", "%2F")
+	deployURL := fmt.Sprintf("%s/agents/%s/versions/0.0.1/deployments/local", regURL, encodedAgent)
+
 	httpClient := &http.Client{Timeout: 60 * time.Second}
 	doPut := func(t *testing.T, env string) string {
 		t.Helper()
-		body := fmt.Sprintf(`{
-			"serverName": %q,
-			"version": "0.0.1",
-			"resourceType": "agent",
-			"providerId": "local",
-			"env": {"LOG_LEVEL": %q}
-		}`, agentName, env)
-		req, err := http.NewRequest(http.MethodPut, regURL+"/deployments", strings.NewReader(body))
+		body := fmt.Sprintf(`{"env": {"LOG_LEVEL": %q}}`, env)
+		req, err := http.NewRequest(http.MethodPut, deployURL, strings.NewReader(body))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := httpClient.Do(req)

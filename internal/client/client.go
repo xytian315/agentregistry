@@ -744,11 +744,36 @@ func (c *Client) DeployAgent(name, version string, env map[string]string, provid
 	return &deployment, nil
 }
 
-// ApplyDeployment applies (creates or no-ops) a deployment idempotently.
-// If a deployment for the same resource already exists and is deployed, it is returned unchanged.
-func (c *Client) ApplyDeployment(req *deploymentRequest) (*DeploymentResponse, error) {
+// DeploymentApplyBody carries the mutable fields for a sub-resource deployment apply.
+type DeploymentApplyBody struct {
+	Env            map[string]string `json:"env,omitempty"`
+	ProviderConfig map[string]any    `json:"providerConfig,omitempty"`
+	PreferRemote   bool              `json:"preferRemote,omitempty"`
+}
+
+// ApplyAgentDeployment applies (creates or no-ops) an agent deployment idempotently.
+// PUT /v0/agents/{agentName}/versions/{version}/deployments/{providerId}
+func (c *Client) ApplyAgentDeployment(agentName, version, providerID string, body *DeploymentApplyBody) (*DeploymentResponse, error) {
+	encName := url.PathEscape(agentName)
+	encVersion := url.PathEscape(version)
+	encProvider := url.PathEscape(providerID)
+	path := fmt.Sprintf("/agents/%s/versions/%s/deployments/%s", encName, encVersion, encProvider)
 	var deployment DeploymentResponse
-	if err := c.doJsonRequest(http.MethodPut, "/deployments", req, &deployment); err != nil {
+	if err := c.doJsonRequest(http.MethodPut, path, body, &deployment); err != nil {
+		return nil, err
+	}
+	return &deployment, nil
+}
+
+// ApplyServerDeployment applies (creates or no-ops) an MCP server deployment idempotently.
+// PUT /v0/servers/{serverName}/versions/{version}/deployments/{providerId}
+func (c *Client) ApplyServerDeployment(serverName, version, providerID string, body *DeploymentApplyBody) (*DeploymentResponse, error) {
+	encName := url.PathEscape(serverName)
+	encVersion := url.PathEscape(version)
+	encProvider := url.PathEscape(providerID)
+	path := fmt.Sprintf("/servers/%s/versions/%s/deployments/%s", encName, encVersion, encProvider)
+	var deployment DeploymentResponse
+	if err := c.doJsonRequest(http.MethodPut, path, body, &deployment); err != nil {
 		return nil, err
 	}
 	return &deployment, nil

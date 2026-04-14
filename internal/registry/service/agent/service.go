@@ -107,53 +107,28 @@ func (s *registry) ApplyAgent(ctx context.Context, req *models.AgentJSON) (*mode
 		return nil, fmt.Errorf("invalid agent payload: name and version are required")
 	}
 	return database.InTransactionT(ctx, s.tx, func(txCtx context.Context, scope database.Scope) (*models.AgentResponse, error) {
-		agents := scope.Agents()
-		exists, err := agents.CheckAgentVersionExists(txCtx, req.Name, req.Version)
+		return s.applyAgentInTransaction(txCtx, scope.Agents(), req)
+	})
+}
+
+func (s *registry) applyAgentInTransaction(ctx context.Context, agents database.AgentStore, req *models.AgentJSON) (*models.AgentResponse, error) {
+	exists, err := agents.CheckAgentVersionExists(ctx, req.Name, req.Version)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		if err := s.validateNoDuplicateRemoteURLs(ctx, agents, *req); err != nil {
+			return nil, err
+		}
+		result, err := agents.UpdateAgent(ctx, req.Name, req.Version, req)
 		if err != nil {
 			return nil, err
 		}
-		if exists { //nolint:nestif
-			// Run the same remote URL conflict check as the create path: a
-			// different agent must not already own any of the requested remotes.
-			for _, remote := range req.Remotes {
-				filter := &database.AgentFilter{RemoteURL: &remote.URL}
-				existing, _, err := agents.ListAgents(txCtx, filter, "", 1000)
-				if err != nil {
-					return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
-				}
-				for _, existingAgent := range existing {
-					if existingAgent.Agent.Name != req.Name {
-						return nil, fmt.Errorf("remote URL %s is already used by agent %s", remote.URL, existingAgent.Agent.Name)
-					}
-				}
-			}
-			result, err := agents.UpdateAgent(txCtx, req.Name, req.Version, req)
-			if err != nil {
-				return nil, err
-			}
-			// Trigger async embedding regeneration (spec may have changed)
-			agentCopy := *req // copy before goroutine
-			if embeddingutil.EnabledOnPublish(s.cfg, s.embeddingsProvider) {
-				go func() {
-					bgCtx := context.Background()
-					payload := embeddings.BuildAgentEmbeddingPayload(&agentCopy)
-					if strings.TrimSpace(payload) == "" {
-						return
-					}
-					embedding, embErr := embeddings.GenerateSemanticEmbedding(bgCtx, s.embeddingsProvider, payload, s.cfg.Embeddings.Dimensions)
-					if embErr != nil {
-						s.logger.Warn("failed to generate embedding for agent", "name", agentCopy.Name, "version", agentCopy.Version, "error", embErr)
-					} else if embedding != nil {
-						if storeErr := s.SetAgentEmbedding(bgCtx, agentCopy.Name, agentCopy.Version, embedding); storeErr != nil {
-							s.logger.Warn("failed to store embedding for agent", "name", agentCopy.Name, "version", agentCopy.Version, "error", storeErr)
-						}
-					}
-				}()
-			}
-			return result, nil
-		}
-		return s.createAgentInTransaction(txCtx, agents, req)
-	})
+		// Trigger async embedding regeneration (spec may have changed)
+		s.triggerAgentEmbeddingRegeneration(req)
+		return result, nil
+	}
+	return s.createAgentInTransaction(ctx, agents, req)
 }
 
 func (s *registry) DeleteAgent(ctx context.Context, agentName, version string) error {
@@ -222,6 +197,62 @@ func (s *registry) ResolveAgentManifestPrompts(ctx context.Context, manifest *mo
 	return resolved, nil
 }
 
+// validateNoDuplicateRemoteURLs ensures none of the requested remote URLs are
+// already owned by a different agent. Used by both the create and apply paths
+// to enforce the same uniqueness invariant.
+// triggerAgentEmbeddingRegeneration kicks off async embedding regeneration if
+// embedding-on-publish is enabled. The agent value is copied into the closure
+// to avoid races with callers that may mutate the request after this returns.
+func (s *registry) triggerAgentEmbeddingRegeneration(req *models.AgentJSON) {
+	if !embeddingutil.EnabledOnPublish(s.cfg, s.embeddingsProvider) {
+		return
+	}
+	agentCopy := *req
+	go func() {
+		bgCtx := context.Background()
+		payload := embeddings.BuildAgentEmbeddingPayload(&agentCopy)
+		if strings.TrimSpace(payload) == "" {
+			return
+		}
+		embedding, embErr := embeddings.GenerateSemanticEmbedding(bgCtx, s.embeddingsProvider, payload, s.cfg.Embeddings.Dimensions)
+		if embErr != nil {
+			s.logger.Warn("failed to generate embedding for agent", "name", agentCopy.Name, "version", agentCopy.Version, "error", embErr)
+			return
+		}
+		if embedding == nil {
+			return
+		}
+		if storeErr := s.SetAgentEmbedding(bgCtx, agentCopy.Name, agentCopy.Version, embedding); storeErr != nil {
+			s.logger.Warn("failed to store embedding for agent", "name", agentCopy.Name, "version", agentCopy.Version, "error", storeErr)
+		}
+	}()
+}
+
+func (s *registry) validateNoDuplicateRemoteURLs(ctx context.Context, agents database.AgentStore, agentDetail models.AgentJSON) error {
+	for _, remote := range agentDetail.Remotes {
+		remoteURL := remote.URL
+		filter := &database.AgentFilter{RemoteURL: &remoteURL}
+		cursor := ""
+
+		for {
+			conflictingAgents, nextCursor, err := agents.ListAgents(ctx, filter, cursor, 1000)
+			if err != nil {
+				return fmt.Errorf("failed to check remote URL conflict: %w", err)
+			}
+			for _, conflictingAgent := range conflictingAgents {
+				if conflictingAgent.Agent.Name != agentDetail.Name {
+					return fmt.Errorf("remote URL %s is already used by agent %s", remoteURL, conflictingAgent.Agent.Name)
+				}
+			}
+			if nextCursor == "" {
+				break
+			}
+			cursor = nextCursor
+		}
+	}
+	return nil
+}
+
 func (s *registry) createAgentInTransaction(ctx context.Context, agents database.AgentStore, req *models.AgentJSON) (*models.AgentResponse, error) {
 	if req == nil || req.Name == "" || req.Version == "" {
 		return nil, fmt.Errorf("invalid agent payload: name and version are required")
@@ -230,17 +261,8 @@ func (s *registry) createAgentInTransaction(ctx context.Context, agents database
 	publishTime := time.Now()
 	agentJSON := *req
 
-	for _, remote := range agentJSON.Remotes {
-		filter := &database.AgentFilter{RemoteURL: &remote.URL}
-		existing, _, err := agents.ListAgents(ctx, filter, "", 1000)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check remote URL conflict: %w", err)
-		}
-		for _, existingAgent := range existing {
-			if existingAgent.Agent.Name != agentJSON.Name {
-				return nil, fmt.Errorf("remote URL %s is already used by agent %s", remote.URL, existingAgent.Agent.Name)
-			}
-		}
+	if err := s.validateNoDuplicateRemoteURLs(ctx, agents, agentJSON); err != nil {
+		return nil, err
 	}
 
 	versionCount, err := agents.CountAgentVersions(ctx, agentJSON.Name)
@@ -293,23 +315,7 @@ func (s *registry) createAgentInTransaction(ctx context.Context, agents database
 		return nil, err
 	}
 
-	if embeddingutil.EnabledOnPublish(s.cfg, s.embeddingsProvider) { //nolint:nestif
-		go func() {
-			bgCtx := context.Background()
-			payload := embeddings.BuildAgentEmbeddingPayload(&agentJSON)
-			if strings.TrimSpace(payload) == "" {
-				return
-			}
-			embedding, err := embeddings.GenerateSemanticEmbedding(bgCtx, s.embeddingsProvider, payload, s.cfg.Embeddings.Dimensions)
-			if err != nil {
-				s.logger.Warn("failed to generate embedding for agent", "name", agentJSON.Name, "version", agentJSON.Version, "error", err)
-			} else if embedding != nil {
-				if err := s.SetAgentEmbedding(bgCtx, agentJSON.Name, agentJSON.Version, embedding); err != nil {
-					s.logger.Warn("failed to store embedding for agent", "name", agentJSON.Name, "version", agentJSON.Version, "error", err)
-				}
-			}
-		}()
-	}
+	s.triggerAgentEmbeddingRegeneration(&agentJSON)
 
 	return result, nil
 }

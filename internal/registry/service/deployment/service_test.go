@@ -8,8 +8,11 @@ import (
 	agentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/agent"
 	deploymentsvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/deployment"
 	providersvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/provider"
+	serversvc "github.com/agentregistry-dev/agentregistry/internal/registry/service/server"
 	"github.com/agentregistry-dev/agentregistry/pkg/models"
 	registrytypes "github.com/agentregistry-dev/agentregistry/pkg/types"
+	apiv0 "github.com/modelcontextprotocol/registry/pkg/api/v0"
+	"github.com/modelcontextprotocol/registry/pkg/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -128,18 +131,11 @@ func newTestDeploymentServiceWithAdapter(t *testing.T, adapter *mockDeploymentAd
 	return svc, providerID
 }
 
-func TestApplyDeployment_Create(t *testing.T) {
+func TestApplyAgentDeployment_Create(t *testing.T) {
 	ctx := testCtx()
 	svc, agentName, providerID := newTestDeploymentService(t)
 
-	dep, err := svc.ApplyDeployment(ctx, &models.Deployment{
-		ServerName:   agentName,
-		Version:      "1.0.0",
-		ResourceType: "agent",
-		ProviderID:   providerID,
-		Origin:       "managed",
-		Env:          map[string]string{},
-	})
+	dep, err := svc.ApplyAgentDeployment(ctx, agentName, "1.0.0", providerID, map[string]string{}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, dep)
 	assert.Equal(t, models.DeploymentStatusDeployed, dep.Status)
@@ -147,25 +143,18 @@ func TestApplyDeployment_Create(t *testing.T) {
 	assert.Equal(t, providerID, dep.ProviderID)
 }
 
-func TestApplyDeployment_Idempotent(t *testing.T) {
+func TestApplyAgentDeployment_Idempotent(t *testing.T) {
 	ctx := testCtx()
 	svc, agentName, providerID := newTestDeploymentService(t)
 
-	req := &models.Deployment{
-		ServerName:   agentName,
-		Version:      "1.0.0",
-		ResourceType: "agent",
-		ProviderID:   providerID,
-		Origin:       "managed",
-		Env:          map[string]string{},
-	}
+	env := map[string]string{}
 
-	dep1, err := svc.ApplyDeployment(ctx, req)
+	dep1, err := svc.ApplyAgentDeployment(ctx, agentName, "1.0.0", providerID, env, nil)
 	require.NoError(t, err, "first apply should succeed")
 	require.NotNil(t, dep1)
 	assert.Equal(t, models.DeploymentStatusDeployed, dep1.Status)
 
-	dep2, err := svc.ApplyDeployment(ctx, req)
+	dep2, err := svc.ApplyAgentDeployment(ctx, agentName, "1.0.0", providerID, env, nil)
 	require.NoError(t, err, "second apply should succeed (idempotent)")
 	require.NotNil(t, dep2)
 	assert.Equal(t, dep1.ID, dep2.ID, "idempotent apply must return same deployment")
@@ -175,28 +164,19 @@ func TestApplyDeployment_Idempotent(t *testing.T) {
 	assert.Len(t, deployments, 1, "idempotent apply must not create duplicate records")
 }
 
-func TestApplyDeployment_RedeploysOnEnvChange(t *testing.T) {
+func TestApplyAgentDeployment_RedeploysOnEnvChange(t *testing.T) {
 	ctx := testCtx()
 	mockAdapter := newMockAdapter()
 	svc, providerID := newTestDeploymentServiceWithAdapter(t, mockAdapter, "redeploy-env", "1.0.0")
 
-	req1 := &models.Deployment{
-		ServerName:   "redeploy-env",
-		Version:      "1.0.0",
-		ResourceType: "agent",
-		ProviderID:   providerID,
-		Env:          map[string]string{"LOG": "info"},
-	}
-	dep1, err := svc.ApplyDeployment(ctx, req1)
+	dep1, err := svc.ApplyAgentDeployment(ctx, "redeploy-env", "1.0.0", providerID, map[string]string{"LOG": "info"}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, dep1)
 
 	deployCalls1 := mockAdapter.deployCallCount()
 
 	// Apply with changed env — must trigger undeploy+redeploy.
-	req2 := *req1
-	req2.Env = map[string]string{"LOG": "debug"}
-	dep2, err := svc.ApplyDeployment(ctx, &req2)
+	dep2, err := svc.ApplyAgentDeployment(ctx, "redeploy-env", "1.0.0", providerID, map[string]string{"LOG": "debug"}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, dep2)
 
@@ -205,76 +185,112 @@ func TestApplyDeployment_RedeploysOnEnvChange(t *testing.T) {
 	assert.Equal(t, "debug", dep2.Env["LOG"], "new deployment must have updated env")
 }
 
-func TestApplyDeployment_RedeploysOnProviderConfigChange(t *testing.T) {
+func TestApplyAgentDeployment_RedeploysOnProviderConfigChange(t *testing.T) {
 	ctx := testCtx()
 	mockAdapter := newMockAdapter()
 	svc, providerID := newTestDeploymentServiceWithAdapter(t, mockAdapter, "redeploy-cfg", "1.0.0")
 
-	req1 := &models.Deployment{
-		ServerName:     "redeploy-cfg",
-		Version:        "1.0.0",
-		ResourceType:   "agent",
-		ProviderID:     providerID,
-		ProviderConfig: models.JSONObject{"region": "us-west-2"},
-	}
-	dep1, err := svc.ApplyDeployment(ctx, req1)
+	dep1, err := svc.ApplyAgentDeployment(ctx, "redeploy-cfg", "1.0.0", providerID, nil, models.JSONObject{"region": "us-west-2"})
 	require.NoError(t, err)
 
-	req2 := *req1
-	req2.ProviderConfig = models.JSONObject{"region": "us-east-1"}
-	dep2, err := svc.ApplyDeployment(ctx, &req2)
+	dep2, err := svc.ApplyAgentDeployment(ctx, "redeploy-cfg", "1.0.0", providerID, nil, models.JSONObject{"region": "us-east-1"})
 	require.NoError(t, err)
 
 	assert.NotEqual(t, dep1.ID, dep2.ID, "providerConfig change must produce a new deployment ID")
 }
 
-func TestApplyDeployment_NoOpWhenEnvIdentical(t *testing.T) {
+func TestApplyAgentDeployment_NoOpWhenEnvIdentical(t *testing.T) {
 	ctx := testCtx()
 	mockAdapter := newMockAdapter()
 	svc, providerID := newTestDeploymentServiceWithAdapter(t, mockAdapter, "noop-env", "1.0.0")
 
-	req := &models.Deployment{
-		ServerName:   "noop-env",
-		Version:      "1.0.0",
-		ResourceType: "agent",
-		ProviderID:   providerID,
-		Env:          map[string]string{"LOG": "info"},
-	}
-	dep1, err := svc.ApplyDeployment(ctx, req)
+	env := map[string]string{"LOG": "info"}
+
+	dep1, err := svc.ApplyAgentDeployment(ctx, "noop-env", "1.0.0", providerID, env, nil)
 	require.NoError(t, err)
 
 	deployCalls1 := mockAdapter.deployCallCount()
 
 	// Apply identical request — must be no-op (no second adapter.Deploy).
-	dep2, err := svc.ApplyDeployment(ctx, req)
+	dep2, err := svc.ApplyAgentDeployment(ctx, "noop-env", "1.0.0", providerID, env, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, dep1.ID, dep2.ID, "identical apply must return same ID")
 	assert.Equal(t, deployCalls1, mockAdapter.deployCallCount(), "no-op must not call adapter.Deploy again")
 }
 
-func TestApplyDeployment_NoOpWhenNilVsEmptyEnv(t *testing.T) {
+func TestApplyAgentDeployment_NoOpWhenNilVsEmptyEnv(t *testing.T) {
 	ctx := testCtx()
 	mockAdapter := newMockAdapter()
 	svc, providerID := newTestDeploymentServiceWithAdapter(t, mockAdapter, "noop-nilenv", "1.0.0")
 
-	req1 := &models.Deployment{
-		ServerName:   "noop-nilenv",
-		Version:      "1.0.0",
-		ResourceType: "agent",
-		ProviderID:   providerID,
-		Env:          nil,
-	}
-	dep1, err := svc.ApplyDeployment(ctx, req1)
+	dep1, err := svc.ApplyAgentDeployment(ctx, "noop-nilenv", "1.0.0", providerID, nil, nil)
 	require.NoError(t, err)
 
 	deployCalls1 := mockAdapter.deployCallCount()
 
-	req2 := *req1
-	req2.Env = map[string]string{}
-	dep2, err := svc.ApplyDeployment(ctx, &req2)
+	dep2, err := svc.ApplyAgentDeployment(ctx, "noop-nilenv", "1.0.0", providerID, map[string]string{}, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, dep1.ID, dep2.ID, "nil and empty env must be treated as equal")
 	assert.Equal(t, deployCalls1, mockAdapter.deployCallCount(), "must not redeploy")
+}
+
+// minimalServerJSON returns a minimal valid ServerJSON suitable for testing.
+func minimalServerJSON(name, version, description string) *apiv0.ServerJSON {
+	return &apiv0.ServerJSON{
+		Name:        name,
+		Version:     version,
+		Description: description,
+		Schema:      model.CurrentSchemaURL,
+	}
+}
+
+// newTestDeploymentServiceWithServer creates a deployment service wired to the given
+// mock adapter and publishes a test MCP server. It returns the service and provider ID.
+func newTestDeploymentServiceWithServer(t *testing.T, adapter *mockDeploymentAdapter, serverName, serverVersion string) (deploymentsvc.Registry, string) {
+	t.Helper()
+	testDB := internaldb.NewTestDB(t)
+	ctx := testCtx()
+
+	serverSvc := serversvc.New(serversvc.Dependencies{StoreDB: testDB})
+	_, err := serverSvc.PublishServer(ctx, minimalServerJSON(serverName, serverVersion, "Test server for deployment"))
+	require.NoError(t, err)
+
+	providerID := "test-mock-provider"
+	provSvc := providersvc.New(providersvc.Dependencies{Providers: testDB.Providers()})
+	_, err = provSvc.RegisterProvider(ctx, &models.CreateProviderInput{
+		ID:       providerID,
+		Name:     "Mock Provider",
+		Platform: "mock",
+	})
+	require.NoError(t, err)
+
+	svc := deploymentsvc.New(deploymentsvc.Dependencies{
+		StoreDB:   testDB,
+		Providers: provSvc,
+		DeploymentAdapters: map[string]registrytypes.DeploymentPlatformAdapter{
+			"mock": adapter,
+		},
+	})
+
+	return svc, providerID
+}
+
+func TestApplyServerDeployment_Create(t *testing.T) {
+	ctx := testCtx()
+	mockAdapter := newMockAdapter()
+	svc, providerID := newTestDeploymentServiceWithServer(t, mockAdapter, "com.example/test-deploy-server", "1.0.0")
+
+	env := map[string]string{"K": "V"}
+	dep, err := svc.ApplyServerDeployment(ctx, "com.example/test-deploy-server", "1.0.0", providerID, env, nil)
+	require.NoError(t, err)
+	require.NotNil(t, dep)
+
+	assert.Equal(t, models.DeploymentStatusDeployed, dep.Status)
+	assert.Equal(t, "com.example/test-deploy-server", dep.ServerName)
+	assert.Equal(t, "1.0.0", dep.Version)
+	assert.Equal(t, "mcp", dep.ResourceType)
+	assert.Equal(t, providerID, dep.ProviderID)
+	assert.Equal(t, "V", dep.Env["K"])
 }

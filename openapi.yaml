@@ -266,6 +266,52 @@ paths:
                         application/problem+json:
                             schema:
                                 $ref: '#/components/schemas/ErrorModel'
+    /v0/agents/{agentName}/versions/{version}/deployments/{providerId}:
+        put:
+            tags:
+                - deployments
+                - agents
+            summary: Apply agent deployment (idempotent)
+            description: Idempotently deploy an agent. Returns the existing deployment unchanged if already deployed; otherwise cleans up any stale record and launches a fresh deployment.
+            operationId: apply-agent-deployment
+            parameters:
+                - name: agentName
+                  in: path
+                  description: URL-encoded agent name
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  description: URL-encoded agent version
+                  required: true
+                  schema:
+                    type: string
+                - name: providerId
+                  in: path
+                  description: Deployment provider ID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeploymentApplyBody'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Deployment'
+                default:
+                    description: Error
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorModel'
     /v0/auth/dns:
         post:
             tags:
@@ -451,31 +497,6 @@ paths:
             summary: Deploy a resource
             description: Deploy a resource (MCP server or agent) with deployment env vars (`env`) and optional provider-specific settings (`providerConfig`). Defaults to MCP server if resourceType is not specified.
             operationId: deploy-server
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/DeploymentRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Deployment'
-                default:
-                    description: Error
-                    content:
-                        application/problem+json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorModel'
-        put:
-            tags:
-                - deployments
-            summary: Apply a deployment (idempotent deploy)
-            description: Idempotently deploy a resource. Returns the existing deployment unchanged if the resource is already deployed; otherwise cleans up any stale record and launches a fresh deployment.
-            operationId: apply-deployment
             requestBody:
                 content:
                     application/json:
@@ -1486,6 +1507,52 @@ paths:
                         application/problem+json:
                             schema:
                                 $ref: '#/components/schemas/ErrorModel'
+    /v0/servers/{serverName}/versions/{version}/deployments/{providerId}:
+        put:
+            tags:
+                - deployments
+                - servers
+            summary: Apply server deployment (idempotent)
+            description: Idempotently deploy an MCP server. Returns the existing deployment unchanged if already deployed; otherwise cleans up any stale record and launches a fresh deployment.
+            operationId: apply-server-deployment
+            parameters:
+                - name: serverName
+                  in: path
+                  description: URL-encoded server name
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  description: URL-encoded server version
+                  required: true
+                  schema:
+                    type: string
+                - name: providerId
+                  in: path
+                  description: Deployment provider ID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeploymentApplyBody'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Deployment'
+                default:
+                    description: Error
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorModel'
     /v0/skills:
         get:
             tags:
@@ -2057,6 +2124,23 @@ components:
                 - deploymentId
                 - status
                 - logs
+        DeploymentApplyBody:
+            type: object
+            additionalProperties: false
+            properties:
+                env:
+                    type: object
+                    description: Deployment environment variables.
+                    additionalProperties:
+                        type: string
+                providerConfig:
+                    type: object
+                    description: Optional provider-specific deployment settings.
+                    additionalProperties: {}
+                preferRemote:
+                    type: boolean
+                    description: Prefer remote deployment over local
+                    default: false
         DeploymentRequest:
             type: object
             additionalProperties: false
