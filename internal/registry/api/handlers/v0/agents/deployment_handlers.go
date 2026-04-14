@@ -19,7 +19,7 @@ type AgentDeploymentApplyInput struct {
 	AgentName  string `path:"agentName" doc:"URL-encoded agent name"`
 	Version    string `path:"version" doc:"URL-encoded agent version"`
 	ProviderID string `path:"providerId" doc:"Deployment provider ID"`
-	Body       DeploymentApplyBody
+	Body       DeploymentApplyBody `body:""`
 }
 
 // DeploymentApplyBody carries the mutable fields for a deployment apply request.

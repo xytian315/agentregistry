@@ -279,6 +279,10 @@ func (f *FakeRegistry) DeleteProvider(_ context.Context, _, _ string) error {
 	return nil
 }
 
+func (f *FakeRegistry) ApplyProvider(_ context.Context, _, _ string, _ *models.UpdateProviderInput) (*models.Provider, error) {
+	return nil, ErrNotFound
+}
+
 func (f *FakeRegistry) PlatformAdapters() map[string]registrytypes.ProviderPlatformAdapter {
 	return nil
 }
@@ -319,4 +323,12 @@ func (f *FakeRegistry) GetDeploymentLogs(_ context.Context, _ *models.Deployment
 
 func (f *FakeRegistry) CancelDeployment(_ context.Context, _ *models.Deployment) error {
 	return nil
+}
+
+func (f *FakeRegistry) ApplyAgentDeployment(_ context.Context, _, _, _ string, _ map[string]string, _ models.JSONObject) (*models.Deployment, error) {
+	return nil, ErrNotFound
+}
+
+func (f *FakeRegistry) ApplyServerDeployment(_ context.Context, _, _, _ string, _ map[string]string, _ models.JSONObject) (*models.Deployment, error) {
+	return nil, ErrNotFound
 }

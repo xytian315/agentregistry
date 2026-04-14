@@ -19,7 +19,7 @@ type ServerDeploymentApplyInput struct {
 	ServerName string `path:"serverName" doc:"URL-encoded server name"`
 	Version    string `path:"version" doc:"URL-encoded server version"`
 	ProviderID string `path:"providerId" doc:"Deployment provider ID"`
-	Body       ServerDeploymentApplyBody
+	Body       ServerDeploymentApplyBody `body:""`
 }
 
 // ServerDeploymentApplyBody carries the mutable fields for a server deployment apply request.

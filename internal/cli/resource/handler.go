@@ -48,8 +48,8 @@ func (reg *Registry) Register(h ResourceHandler) {
 	}
 	reg.byKind[kind] = h
 	reg.aliases[strings.ToLower(kind)] = kind
-	reg.aliases[h.Singular()] = kind
-	reg.aliases[h.Plural()] = kind
+	reg.aliases[strings.ToLower(h.Singular())] = kind
+	reg.aliases[strings.ToLower(h.Plural())] = kind
 }
 
 func (reg *Registry) Lookup(name string) (ResourceHandler, error) {

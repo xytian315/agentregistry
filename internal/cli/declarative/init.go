@@ -42,7 +42,7 @@ Supported types:
   prompt NAME
 
 Examples:
-  arctl init agent adk python my-agent
+  arctl init agent adk python myagent
   arctl init mcp fastmcp-python myorg/my-server
   arctl init skill my-skill
   arctl init prompt my-prompt`,
@@ -79,10 +79,10 @@ The generated agent.yaml can be applied directly:
 
 Supported frameworks: adk
 Supported languages:  python (for adk)`,
-		Example: `  arctl init agent adk python my-agent
-  arctl init agent adk python my-agent --model-provider openai --model-name gpt-4o
-  arctl init agent adk python my-agent --git https://github.com/acme/my-agent
-  arctl init agent adk python my-agent --mcp acme/fetch@1.0.0 --skill summarize --prompt system-prompt`,
+		Example: `  arctl init agent adk python myagent
+  arctl init agent adk python myagent --model-provider openai --model-name gpt-4o
+  arctl init agent adk python myagent --git https://github.com/acme/myagent
+  arctl init agent adk python myagent --mcp acme/fetch@1.0.0 --skill summarize --prompt system-prompt`,
 		Args:         cobra.ExactArgs(3),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
