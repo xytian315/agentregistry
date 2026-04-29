@@ -156,7 +156,7 @@ func NewHumaAPI(
 	if authnProvider != nil {
 		api.UseMiddleware(auth.AuthnMiddleware(authnProvider,
 			// don't authenticate on public paths
-			auth.WithSkipPaths("/health", "/metrics", "/ping", "/docs")),
+			auth.WithSkipPaths("/health", "/metrics", "/ping", "/docs", "/version")),
 		)
 	}
 
