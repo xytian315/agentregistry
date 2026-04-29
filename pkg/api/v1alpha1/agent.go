@@ -43,10 +43,9 @@ type AgentSpec struct {
 // AgentPackage describes a distributable package of the agent (e.g. an OCI
 // image or npm package reference).
 type AgentPackage struct {
-	RegistryType string         `json:"registryType" yaml:"registryType"`
-	Identifier   string         `json:"identifier" yaml:"identifier"`
-	Version      string         `json:"version" yaml:"version"`
-	Transport    TransportProto `json:"transport" yaml:"transport"`
+	RegistryType string `json:"registryType" yaml:"registryType"`
+	Identifier   string `json:"identifier" yaml:"identifier"`
+	Version      string `json:"version" yaml:"version"`
 }
 
 // AgentRemote describes a remote endpoint at which the agent is reachable.
