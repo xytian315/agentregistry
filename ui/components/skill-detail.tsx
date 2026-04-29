@@ -111,29 +111,11 @@ export function SkillDetail({ skill, allVersions: allVersionsProp }: SkillDetail
               {formatDate(official.publishedAt)}
             </span>
           )}
-          {skillData.websiteUrl && (
-            <a
-              href={skillData.websiteUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-muted rounded text-sm hover:bg-muted/80 transition-colors text-primary"
-            >
-              <Globe className="h-3 w-3" />
-              Website
-              <ExternalLink className="h-2.5 w-2.5" />
-            </a>
-          )}
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            {skillData.packages && skillData.packages.length > 0 && (
-              <TabsTrigger value="packages">Packages</TabsTrigger>
-            )}
-            {skillData.remotes && skillData.remotes.length > 0 && (
-              <TabsTrigger value="remotes">Remotes</TabsTrigger>
-            )}
             <TabsTrigger value="raw">Raw</TabsTrigger>
           </TabsList>
 
@@ -147,12 +129,6 @@ export function SkillDetail({ skill, allVersions: allVersionsProp }: SkillDetail
               <section>
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Repository</h3>
                 <div className="space-y-1.5 text-sm">
-                  {skillData.repository.source && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Source</span>
-                      <Badge variant="outline" className="text-[10px]">{skillData.repository.source}</Badge>
-                    </div>
-                  )}
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">URL</span>
                     <a
@@ -166,64 +142,6 @@ export function SkillDetail({ skill, allVersions: allVersionsProp }: SkillDetail
                   </div>
                 </div>
               </section>
-            )}
-          </TabsContent>
-
-          <TabsContent value="packages" className="space-y-3">
-            {skillData.packages && skillData.packages.length > 0 ? (
-              skillData.packages.map((pkg, i) => (
-                <div key={i} className="p-4 rounded-lg border">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-primary" />
-                      <h4 className="text-sm font-semibold">{pkg.identifier}</h4>
-                    </div>
-                    <Badge variant="outline" className="text-xs">{pkg.registryType}</Badge>
-                  </div>
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Version</span>
-                      <span className="font-mono">{pkg.version}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Transport</span>
-                      <span className="font-mono">{pkg.transport?.type || 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-sm text-muted-foreground py-8">No packages defined</p>
-            )}
-          </TabsContent>
-
-          <TabsContent value="remotes" className="space-y-3">
-            {skillData.remotes && skillData.remotes.length > 0 ? (
-              skillData.remotes.map((remote, i) => (
-                <div key={i} className="p-4 rounded-lg border">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <ExternalLink className="h-4 w-4 text-primary" />
-                      <h4 className="text-sm font-semibold">Remote {i + 1}</h4>
-                    </div>
-                  </div>
-                  {remote.url && (
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <Link className="h-3 w-3 text-muted-foreground" />
-                      <a
-                        href={remote.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline break-all"
-                      >
-                        {remote.url}
-                      </a>
-                    </div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-sm text-muted-foreground py-8">No remotes defined</p>
             )}
           </TabsContent>
 

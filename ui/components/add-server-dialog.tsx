@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createServerV0, type ServerJson } from "@/lib/admin-api"
 import { Loader2, AlertCircle, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -27,7 +26,6 @@ export function AddServerDialog({ open, onOpenChange, onServerAdded }: AddServer
   const [description, setDescription] = useState("")
   const [version, setVersion] = useState("")
   const [websiteUrl, setWebsiteUrl] = useState("")
-  const [repositorySource, setRepositorySource] = useState<"github" | "gitlab" | "bitbucket">("github")
   const [repositoryUrl, setRepositoryUrl] = useState("")
 
   // Dynamic fields
@@ -86,7 +84,6 @@ export function AddServerDialog({ open, onOpenChange, onServerAdded }: AddServer
 
       if (repositoryUrl.trim()) {
         server.repository = {
-          source: repositorySource,
           url: repositoryUrl.trim(),
         }
       }
@@ -236,16 +233,6 @@ export function AddServerDialog({ open, onOpenChange, onServerAdded }: AddServer
             <div className="space-y-2">
               <Label htmlFor="repositoryUrl">Repository URL</Label>
               <div className="flex gap-2">
-                <Select value={repositorySource} onValueChange={(v) => setRepositorySource(v as "github" | "gitlab" | "bitbucket")} disabled={loading}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="github">GitHub</SelectItem>
-                    <SelectItem value="gitlab">GitLab</SelectItem>
-                    <SelectItem value="bitbucket">Bitbucket</SelectItem>
-                  </SelectContent>
-                </Select>
                 <Input
                   id="repositoryUrl"
                   placeholder="https://github.com/user/repo"

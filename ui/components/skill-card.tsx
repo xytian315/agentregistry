@@ -64,26 +64,6 @@ export function SkillCard({ skill, onDelete, showDelete = false, showExternalLin
               <span>{formatDate(official.publishedAt)}</span>
             )}
 
-            {skillData.packages && skillData.packages.length > 0 && (
-              <span className="flex items-center gap-1">
-                <Package className="h-3 w-3" />
-                {skillData.packages.length}
-              </span>
-            )}
-
-            {skillData.remotes && skillData.remotes.length > 0 && (
-              <span className="flex items-center gap-1">
-                <ExternalLink className="h-3 w-3" />
-                {skillData.remotes.length}
-              </span>
-            )}
-
-            {skillData.repository?.source && (
-              <span className="flex items-center gap-1">
-                <GitBranch className="h-3 w-3" />
-                {skillData.repository.source}
-              </span>
-            )}
           </div>
         </div>
 
@@ -96,16 +76,6 @@ export function SkillCard({ skill, onDelete, showDelete = false, showExternalLin
               onClick={(e) => { e.stopPropagation(); window.open(skillData.repository?.url || '', '_blank') }}
             >
               <Github className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          {showExternalLinks && skillData.websiteUrl && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={(e) => { e.stopPropagation(); window.open(skillData.websiteUrl, '_blank') }}
-            >
-              <Globe className="h-3.5 w-3.5" />
             </Button>
           )}
           {showDelete && onDelete && (

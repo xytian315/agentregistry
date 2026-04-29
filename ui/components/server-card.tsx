@@ -43,23 +43,17 @@ export function ServerCard({ server, onDelete, onDeploy, showDelete = false, sho
     }
   }
 
-  const icon = serverData.icons?.[0]
-
   return (
     <TooltipProvider>
       <div
         className="group flex items-start gap-3.5 py-4 px-2 -mx-2 rounded-md cursor-pointer transition-colors hover:bg-muted/50"
         onClick={() => onClick?.()}
       >
-        {icon ? (
-          <img src={icon.src} alt="" className="w-10 h-10 rounded flex-shrink-0 mt-0.5" />
-        ) : (
-          <div className="w-10 h-10 rounded bg-primary/8 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <span className="text-xs font-semibold text-primary uppercase">
-              {serverData.name.slice(0, 2)}
-            </span>
-          </div>
-        )}
+        <div className="w-10 h-10 rounded bg-primary/8 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span className="text-xs font-semibold text-primary uppercase">
+            {serverData.name.slice(0, 2)}
+          </span>
+        </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
@@ -107,13 +101,6 @@ export function ServerCard({ server, onDelete, onDeploy, showDelete = false, sho
               <span className="flex items-center gap-1">
                 <ExternalLink className="h-3 w-3" />
                 {serverData.remotes.length}
-              </span>
-            )}
-
-            {serverData.repository?.source && (
-              <span className="flex items-center gap-1">
-                <GitBranch className="h-3 w-3" />
-                {serverData.repository.source}
               </span>
             )}
 

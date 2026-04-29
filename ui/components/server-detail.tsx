@@ -71,8 +71,6 @@ export function ServerDetail({ server, onServerCopied }: ServerDetailProps) {
   const identityData = publisherMetadata?.identity as Record<string, any> | undefined
   const securityScanning = publisherMetadata?.security_scanning as Record<string, any> | undefined
 
-  const icon = serverData.icons?.[0]
-
   const handleVersionChange = (version: string) => {
     const newVersion = allVersions.find(v => v.server.version === version)
     if (newVersion) setSelectedVersion(newVersion)
@@ -107,9 +105,6 @@ export function ServerDetail({ server, onServerCopied }: ServerDetailProps) {
       <div className="space-y-6">
           {/* Header */}
           <div className="flex items-start gap-4">
-            {icon && (
-              <img src={icon.src} alt="" className="w-12 h-12 rounded flex-shrink-0" />
-            )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h1 className="text-2xl font-bold truncate">{serverData.title || serverData.name}</h1>
@@ -207,12 +202,6 @@ export function ServerDetail({ server, onServerCopied }: ServerDetailProps) {
                 <section>
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Repository</h3>
                   <div className="space-y-2 text-sm">
-                    {serverData.repository.source && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Source</span>
-                        <Badge variant="outline" className="text-xs">{serverData.repository.source}</Badge>
-                      </div>
-                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">URL</span>
                       <a
