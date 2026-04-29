@@ -216,8 +216,7 @@ func writeDeclarativeAgentYAML(projectDir, name, ver, image, language, framework
 
 	if gitURL != "" {
 		agent.Spec.Repository = &v1alpha1.Repository{
-			URL:    gitURL,
-			Source: "git",
+			URL: gitURL,
 		}
 	}
 

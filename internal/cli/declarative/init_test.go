@@ -154,7 +154,6 @@ func TestInitAgentCmd_GitRepository(t *testing.T) {
 	repo, ok := spec["repository"].(map[string]any)
 	require.True(t, ok, "repository should be present in spec")
 	assert.Equal(t, "https://github.com/acme/mybot", repo["url"])
-	assert.Equal(t, "git", repo["source"])
 }
 
 func TestInitAgentCmd_NoGitRepository(t *testing.T) {
