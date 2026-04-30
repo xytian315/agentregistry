@@ -155,7 +155,7 @@ func SpecToPlatformAgent(
 		Version:      agentMeta.Version,
 		DeploymentID: opts.DeploymentID,
 		Deployment: platformtypes.AgentDeployment{
-			Image: agentSpec.Image,
+			Image: agentSpec.Source.Image,
 			Env:   envValues,
 			Port:  DefaultLocalAgentPort,
 		},

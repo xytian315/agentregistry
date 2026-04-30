@@ -153,7 +153,7 @@ func RegenerateDockerCompose(projectDir string, resolved *agentmanifest.Resolved
 	agent := resolved.Agent
 
 	envVars := EnvVarsFromMCPServers(resolved.MCPServers)
-	image := ConstructImageName("", agent.Spec.Image, agent.Metadata.Name)
+	image := ConstructImageName("", agent.Spec.Source.Image, agent.Metadata.Name)
 	gen := python.NewPythonGenerator()
 	templateBytes, err := gen.ReadTemplateFile("docker-compose.yaml.tmpl")
 	if err != nil {
