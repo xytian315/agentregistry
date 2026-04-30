@@ -37,9 +37,7 @@ type AgentSpec struct {
 }
 
 // AgentSource is the distribution origin of an agent — Image (the runtime
-// container, used by k-agent deployments) and Repository (the source code,
-// used by deploy-from-source platforms like AgentCore/Vertex). Until the
-// build pipeline can derive one from the other, agents may need both.
+// container) and Repository (the source code).
 type AgentSource struct {
 	// Image is the OCI container image reference that runs the agent.
 	// Format: <registry>/<name>:<tag> (e.g. ghcr.io/owner/agent:1.0.0).
