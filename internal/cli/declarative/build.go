@@ -151,7 +151,7 @@ func resolveImage(flagImage, specImage, name string) string {
 
 // agentSpecImage extracts spec.source.image for an Agent resource.
 func agentSpecImage(obj v1alpha1.Object) string {
-	if a, ok := obj.(*v1alpha1.Agent); ok {
+	if a, ok := obj.(*v1alpha1.Agent); ok && a.Spec.Source != nil {
 		return a.Spec.Source.Image
 	}
 	return ""

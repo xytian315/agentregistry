@@ -18,7 +18,7 @@ func GitHubRepoFor(obj v1alpha1.Object) (owner, repo string, ok bool) {
 	var url string
 	switch v := obj.(type) {
 	case *v1alpha1.Agent:
-		if v.Spec.Source.Repository != nil {
+		if v.Spec.Source != nil && v.Spec.Source.Repository != nil {
 			url = v.Spec.Source.Repository.URL
 		}
 	case *v1alpha1.MCPServer:

@@ -292,7 +292,7 @@ func TestEncode_RoundTrip_YAML(t *testing.T) {
 		Metadata: ObjectMeta{Name: "rt", Version: "v1", Labels: map[string]string{"k": "v"}},
 		Spec: AgentSpec{
 			Title:      "Round Trip",
-			Source:     AgentSource{Image: "img:tag"},
+			Source:     &AgentSource{Image: "img:tag"},
 			MCPServers: []ResourceRef{{Kind: KindMCPServer, Name: "mcp1", Version: "1"}},
 		},
 	}

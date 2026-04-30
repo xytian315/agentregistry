@@ -26,7 +26,7 @@ type AgentSpec struct {
 
 	// Source declares where the agent comes from — Image (the runtime
 	// container) and/or Repository (the source code).
-	Source AgentSource `json:"source,omitempty" yaml:"source,omitempty"`
+	Source *AgentSource `json:"source,omitempty" yaml:"source,omitempty"`
 
 	// References to top-level resources. Each entry's Kind must match the
 	// field name's singular form (MCPServer, Skill, Prompt). Version empty

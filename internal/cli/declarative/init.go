@@ -210,7 +210,7 @@ func writeDeclarativeAgentYAML(projectDir, name, ver, image, language, framework
 			ModelProvider: modelProvider,
 			ModelName:     modelName,
 			Description:   desc,
-			Source: v1alpha1.AgentSource{
+			Source: &v1alpha1.AgentSource{
 				Image: image,
 			},
 		},
