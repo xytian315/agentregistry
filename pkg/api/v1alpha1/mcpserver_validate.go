@@ -16,19 +16,20 @@ func (m *MCPServer) Validate() error {
 func validateMCPServerSpec(s *MCPServerSpec) FieldErrors {
 	var errs FieldErrors
 	errs.Append("spec.title", validateTitle(s.Title))
-	for _, e := range validateRepository(s.Repository) {
-		errs.Append("spec."+e.Path, e.Cause)
-	}
-
-	for i, pkg := range s.Packages {
-		if pkg.RegistryType == "" {
-			errs.Append(fmt.Sprintf("spec.packages[%d].registryType", i), fmt.Errorf("%w", ErrRequiredField))
+	if s.Source != nil {
+		for _, e := range validateRepository(s.Source.Repository) {
+			errs.Append("spec.source."+e.Path, e.Cause)
 		}
-		if pkg.Identifier == "" {
-			errs.Append(fmt.Sprintf("spec.packages[%d].identifier", i), fmt.Errorf("%w", ErrRequiredField))
-		}
-		if pkg.Transport.Type == "" {
-			errs.Append(fmt.Sprintf("spec.packages[%d].transport.type", i), fmt.Errorf("%w", ErrRequiredField))
+		if pkg := s.Source.Package; pkg != nil {
+			if pkg.RegistryType == "" {
+				errs.Append("spec.source.package.registryType", fmt.Errorf("%w", ErrRequiredField))
+			}
+			if pkg.Identifier == "" {
+				errs.Append("spec.source.package.identifier", fmt.Errorf("%w", ErrRequiredField))
+			}
+			if pkg.Transport.Type == "" {
+				errs.Append("spec.source.package.transport.type", fmt.Errorf("%w", ErrRequiredField))
+			}
 		}
 	}
 
