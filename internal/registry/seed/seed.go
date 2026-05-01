@@ -181,14 +181,22 @@ func seedServerToMCPSpec(s *seedServerJSON) (v1alpha1.MCPServerSpec, error) {
 		Description: s.Description,
 		Title:       s.Title,
 	}
+	var src *v1alpha1.MCPServerSource
+	ensureSource := func() *v1alpha1.MCPServerSource {
+		if src == nil {
+			src = &v1alpha1.MCPServerSource{}
+		}
+		return src
+	}
 	if s.Repository != nil {
-		spec.Repository = &v1alpha1.Repository{
+		ensureSource().Repository = &v1alpha1.Repository{
 			URL:       s.Repository.URL,
 			Subfolder: s.Repository.Subfolder,
 		}
 	}
-	for _, p := range s.Packages {
-		pkg := v1alpha1.MCPPackage{
+	if len(s.Packages) > 0 {
+		p := s.Packages[0]
+		ensureSource().Package = &v1alpha1.MCPPackage{
 			RegistryType:    p.RegistryType,
 			RegistryBaseURL: p.RegistryBaseURL,
 			Identifier:      p.Identifier,
@@ -200,7 +208,9 @@ func seedServerToMCPSpec(s *seedServerJSON) (v1alpha1.MCPServerSpec, error) {
 				URL:  p.Transport.URL,
 			},
 		}
-		spec.Packages = append(spec.Packages, pkg)
+	}
+	if src != nil {
+		spec.Source = src
 	}
 	return spec, nil
 }
