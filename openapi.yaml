@@ -1612,8 +1612,6 @@ components:
                         $ref: '#/components/schemas/ResourceRef'
                 source:
                     $ref: '#/components/schemas/AgentSource'
-                telemetryEndpoint:
-                    type: string
                 title:
                     type: string
         ApplyResult:
@@ -2120,6 +2118,8 @@ components:
                     type: object
                     additionalProperties: {}
                 platform:
+                    type: string
+                telemetryEndpoint:
                     type: string
             required:
                 - platform

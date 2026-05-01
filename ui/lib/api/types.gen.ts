@@ -27,7 +27,6 @@ export type AgentSpec = {
     prompts?: Array<ResourceRef>;
     skills?: Array<ResourceRef>;
     source?: AgentSource;
-    telemetryEndpoint?: string;
     title?: string;
 };
 
@@ -287,6 +286,7 @@ export type ProviderSpec = {
         [key: string]: unknown;
     };
     platform: string;
+    telemetryEndpoint?: string;
 };
 
 export type RemoteMcpServer = {
